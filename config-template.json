@@ -1,0 +1,18 @@
+{
+    "chartmogul": {
+        "accountToken": "",
+        "secretKey": ""
+    },
+    "zuora": {
+        "username": "",
+        "password": "",
+        "production": true
+    },
+    "transformer": {
+        "dataSource": "Zuora-00",
+        "#accounts": {
+            "exclude": [""],
+            "include": [""]
+         }
+    }
+}

@@ -1,0 +1,35 @@
+{
+    "name": "zuora-chartmogul-integration",
+    "description": "Custom integration of Zuora invoice data for Chartmogul.",
+    "version": "0.0.1",
+    "license": "GPL-3.0",
+    "keywords": [
+        "chartmogul",
+        "zuora",
+        "integration"
+    ],
+    "scripts": {
+        "test": "./node_modules/istanbul/lib/cli.js cover -x 'spec/**' ./node_modules/jasmine/bin/jasmine.js"
+    },
+    "devDependencies": {
+        "jasmine": "*",
+        "istanbul": "~0.4.3",
+        "deep-diff": "~0.3.4"
+    },
+    "dependencies": {
+        "fs": "~0.0.2",
+        "q": "~1.4.0",
+        "moment": ">=2.5.1",
+        "log4js": "~0.6.25",
+        "lodash": "~3.5.0",
+        "minimist" : "~1.2.0",
+        "csvtojson": "*",
+        "moment-range": "*",
+        "zuora" : "0.1.7",
+        "chartmoguljs": "git://github.com/samepage-labs/chartmoguljs.git",
+        "minimist" : "~1.2.0",
+        "request-promise": "~2.0.1",
+        "prompt": "~1.0.0",
+        "verror": "~1.6.1"
+    }
+}
