@@ -1,6 +1,6 @@
 "use strict";
 
-var logger = require("log4js").getLogger(),
+var logger = require("log4js").getLogger("invoiceBuilder"),
     VError = require("verror"),
     // _ = require("lodash"),
     moment = require("moment"),

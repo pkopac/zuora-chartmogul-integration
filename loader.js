@@ -27,12 +27,14 @@ Loader.prototype.getAllInvoiceItems = function() {
         "AccountingCode,AppliedToInvoiceItemId,ChargeAmount,ChargeName,Id,"+
         "Quantity,ServiceEndDate,ServiceStartDate,SubscriptionId,TaxAmount,UOM,UnitPrice,"+
         "Account.Currency,Account.Name,Account.AccountNumber,Account.SamepageId__c,Account.Status,"+
-        "BillToContact.City,BillToContact.Country,BillToContact.PostalCode,BillToContact.State"+
+        "BillToContact.City,BillToContact.Country,BillToContact.PostalCode,BillToContact.State,"+
         "Invoice.AdjustmentAmount,Invoice.Amount,Invoice.Balance,Invoice.DueDate,"+
         "Invoice.InvoiceDate,Invoice.InvoiceNumber,Invoice.PaymentAmount,"+
         "Invoice.PostedDate,Invoice.RefundAmount,Invoice.Status,"+
         "Subscription.CancelledDate,Subscription.Id,Subscription.Name,Subscription.Status,Subscription.SubscriptionEndDate"+
-        " from InvoiceItem"
+        " from InvoiceItem",
+
+        "getAllInvoiceItems"
     );
 };
 
@@ -43,7 +45,9 @@ Loader.prototype.getAllInvoicePayments = function() {
     return this.aqua.zoqlRequest("select "+
         "Invoice.InvoiceNumber,"+
         "Payment.Amount,Payment.CreatedDate,Payment.Id,Payment.PaymentNumber,Payment.Status"+
-        " from InvoicePayment"
+        " from InvoicePayment",
+
+        "getAllInvoicePayments"
     );
 };
 
@@ -52,7 +56,9 @@ Loader.prototype.getAllRefundInvoicePayments = function() {
         "select "+
         "Invoice.InvoiceNumber,"+
         "Refund.Amount,Refund.Id,Refund.RefundDate,Refund.RefundNumber,Refund.Status"+
-        " from RefundInvoicePayment"
+        " from RefundInvoicePayment",
+
+        "getAllRefundInvoicePayments"
     );
 };
 
@@ -61,7 +67,9 @@ Loader.prototype.getAllInvoiceItemAdjustments = function() {
         "select "+
         "Amount,Id,Status,Type,"+
         "Invoice.InvoiceNumber,InvoiceItem.Id"+
-        " from InvoiceItemAdjustment"
+        " from InvoiceItemAdjustment",
+
+        "getAllInvoiceItemAdjustments"
     );
 };
 
@@ -70,7 +78,9 @@ Loader.prototype.getAllInvoiceAdjustments = function() {
         "select "+
         "Amount,Id,Status,Type,"+
         "Invoice.InvoiceNumber"+
-        " from InvoiceAdjustment"
+        " from InvoiceAdjustment",
+
+        "getAllInvoiceAdjustments"
     );
 };
 
@@ -86,7 +96,9 @@ Loader.prototype.getAllCreditBalanceAdjustments = function() {
         "Invoice.InvoiceNumber,"+
         "Payment.Amount,Payment.Id,Payment.PaymentNumber,"+
         "Refund.Amount,Refund.Id,Refund.RefundDate,Refund.RefundNumber,Refund.Status"+
-        " from CreditBalanceAdjustment"
+        " from CreditBalanceAdjustment",
+
+        "getAllCreditBalanceAdjustments"
     );
 };
 

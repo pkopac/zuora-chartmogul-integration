@@ -1,7 +1,7 @@
 "use strict";
 const ZUORA_POLLING = 2000;
 
-var logger = require("log4js").getLogger(),
+var logger = require("log4js").getLogger("zuora"),
     Q = require("q"),
     request = require("request-promise"),
     Converter = require("csvtojson").Converter;
@@ -46,14 +46,16 @@ ZuoraAqua.prototype.retrieveFile = function(fileId) {
 
 ZuoraAqua.prototype.pollUntilReady = function(response){
     var jobId = response.id,
+        name = response.name,
         self = this,
         deferred = Q.defer();
 
-    if (!jobId) {
-        return Q.reject(response);
+    if (!jobId || response.errorCode) {
+        throw response;
     }
+
     var intervalId = setInterval(function(){
-        logger.debug("Polling", jobId);
+        logger.debug("Polling", name, jobId);
         request({
             method: "GET",
             uri: self.batchUri + "jobs/" + jobId,
@@ -78,16 +80,15 @@ ZuoraAqua.prototype.pollUntilReady = function(response){
     return deferred.promise;
 };
 
-ZuoraAqua.prototype.zoqlRequest = function(query) {
+ZuoraAqua.prototype.zoqlRequest = function(query, name) {
     var self = this;
-
-    return request({
+    return Q(request({
         method: "POST",
         uri: this.batchUri,
         body: {
             useQueryLabels: true,
             format: "csv",
-            name: "Chartmogul integration",
+            name: name || "Chartmogul integration",
             dateTimeUtc: true,
             queries: [
                 {name: "zoql",
@@ -97,8 +98,8 @@ ZuoraAqua.prototype.zoqlRequest = function(query) {
         },
         json: true,
         auth: this.auth
-    })
-    .then((res) => self.pollUntilReady(res));
+    }))
+    .then(res => self.pollUntilReady(res));
 };
 
 exports.ZuoraAqua = ZuoraAqua;

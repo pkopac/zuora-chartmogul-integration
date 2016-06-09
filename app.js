@@ -1,15 +1,17 @@
 /* eslint no-process-exit: 0, no-console: ["error", { allow: ["error"] }] */
 "use strict";
 
-var //Q = require("q"),
+var Q = require("q"),
     fs = require("fs"),
     minimist = require("minimist");
+
+Q.longStackSupport = true; //DEBUG!
 
 var Loader = require("./loader.js").Loader;
 var Importer = require("./importer.js").Importer;
 var Transformer = require("./transformer.js").Transformer;
 
-var logger = require("log4js").getLogger();
+var logger = require("log4js").getLogger("app");
 logger.setLevel("TRACE");
 
 const DEFAULT_CONFIG_PATH = "/etc/zuora-chartmogul/config.json";
@@ -59,13 +61,19 @@ function runTransformation(configuration) {
     transformer.configure(configuration.transformer);
 
     transformer.run()
-        .catch(err => logger.error(err));
+        .catch(err => {
+            logger.fatal(err);
+            process.exit(1);
+        });
 }
 
 (function() {
     processArgs();
-    var configuration = JSON.parse(fs.readFileSync(argv.config, "utf8"));
-
+    try {
+        var configuration = JSON.parse(fs.readFileSync(argv.config, "utf8"));
+    } catch (error) {
+        throw(error, "Couldn't load configuration file!");
+    }
     if (argv.interactive) {
         runInteractive(configuration);
     } else {

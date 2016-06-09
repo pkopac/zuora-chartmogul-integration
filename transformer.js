@@ -1,6 +1,6 @@
 "use strict";
 
-var logger = require("log4js").getLogger(),
+var logger = require("log4js").getLogger("transformer"),
     Q = require("q"),
     //moment = require("moment"),
     _ = require("lodash"),
@@ -29,6 +29,8 @@ Transformer.prototype.run = function () {
 };
 
 Transformer.prototype.reloadAll = function () {
+    logger.info("Exporting data from Zuora...");
+
     return Q.all([
         this.loader.getAllInvoiceItems(),
         this.loader.getAllInvoicePayments(),
@@ -43,6 +45,9 @@ Transformer.prototype.reloadAll = function () {
 Transformer.prototype.groupInsertPlansAndCustomers = function (
     invoices, payments, refunds, itemAdjs, invoiceAdjs, creditAdjs, dsUuid) {
 
+    logger.info("Processing data...");
+
+    var self = this;
     self.importer.dataSource = dsUuid;
     var itemsByAccount = self.filterAndGroupItems(invoices);
     return Q.all([self.importer.insertPlans()
@@ -158,8 +163,10 @@ Transformer.prototype.configure = function (json) {
  */
 Transformer.prototype.filterAndGroupItems = function (invoiceItems) {
     var self = this;
-    var itemsByAccountId = _.groupBy(invoiceItems, (rec) =>
-            rec.Account.SamepageId__c || rec.Account.AccountNumber);
+    var itemsByAccountId = _.groupBy(invoiceItems
+                .filter(i => i.Invoice.Status !== "Posted"), //remove invoices that were canceled/just drafted
+            (rec) =>
+                rec.Account.SamepageId__c || rec.Account.AccountNumber);
 
     var filteredItemsByAccount = {};
     Object.keys(itemsByAccountId)
@@ -169,9 +176,7 @@ Transformer.prototype.filterAndGroupItems = function (invoiceItems) {
         .filter(accountId => !this.includeAccounts || self.includeAccounts.has(accountId))
         .filter(accountId => !this.excludeAccounts || !self.excludeAccounts.has(accountId))
         .forEach(function (accountId) {
-            //remove invoices that were canceled/just drafted
-            filteredItemsByAccount[accountId] = itemsByAccountId[accountId]
-                .filter(i => i.Invoice.Status !== "Posted");
+            filteredItemsByAccount[accountId] = itemsByAccountId[accountId];
         });
     return filteredItemsByAccount;
 };

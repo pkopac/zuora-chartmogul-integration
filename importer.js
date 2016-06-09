@@ -1,6 +1,6 @@
 "use strict";
 
-var logger = require("log4js").getLogger();
+var logger = require("log4js").getLogger("importer");
 var cm = require("chartmoguljs"),
     Q = require("q");
 
@@ -22,6 +22,8 @@ var Importer = function () {
     this.dataSource = null; // must be set later
 };
 
+const CHARTMOGUL_DELAY = 5000;
+
 Importer.PLANS = {
     PRO_ANNUALLY: "Pro Annually",
     PRO_MONTHLY: "Pro Monthly",
@@ -37,14 +39,36 @@ Importer.prototype.dropAndCreateDataSource = function(name) {
     logger.trace("dropAndCreateDataSource");
     return cm.import.listDataSources()
         .then(function (response) {
-            logger.debug("Existing data sources: ", response.data_sources);
+            logger.trace("Existing data sources: ", response.data_sources);
 
             var ds = response.data_sources.find(d => d.name === name);
 
             if (ds) {
                 logger.info("Cleaning data source - %s...", ds.name);
                 return cm.import.deleteDataSource(ds.uuid)
-                    .then(() => cm.import.createDataSource(name))
+                    .then(() => {
+                        var d = Q.defer();
+                        logger.debug("Waiting " + CHARTMOGUL_DELAY/1000 + " s for eventual consistency...");
+                        var retry = setInterval(() => {
+                            cm.import.createDataSource(name)
+                            .then((result) => {
+                                clearInterval(retry);
+                                logger.info("Successfully cleaned data source.");
+                                d.fulfill(result);
+                            })
+                            .catch((err) => {
+                                if (err.statusCode !== 422) {
+                                    logger.debug(err.statusCode);
+                                    clearInterval(retry);
+                                    d.reject(err);
+                                }
+                                // in case of 422, try again
+                            });
+
+                        }, CHARTMOGUL_DELAY);
+                        return d.promise;
+                    })
+                    .tap(d => logger.trace(d))
                     .then((createdDs) => createdDs.uuid);
             } else {
                 logger.info("Creating new data source...");

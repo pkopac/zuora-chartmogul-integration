@@ -12,11 +12,12 @@ Use REST APIs of both with transformations to load data and get charts.
 
 ### Usage
 1. Put credentials in config.json, see config-template.json.
-2. Run ```node app.js```.
+2. ```npm install```
+3. ```node app.js```.
 
 ### Tests
 Use ```istanbul``` for coverage and ```jasmine``` for definition of unit tests.
-Run ```npm test```.
+* Run ```npm test```.
 
 ### Implementation
 NodeJS application + wrapper libs for both services.

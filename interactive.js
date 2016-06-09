@@ -1,5 +1,5 @@
 /* eslint no-console: ["error", { allow: ["log"] }] */
-var logger = require("log4js").getLogger(),
+var logger = require("log4js").getLogger("interactive"),
     Q = require("q"),
     prompt = require("prompt"),
     colors = require("colors/safe");
@@ -12,7 +12,7 @@ InteractiveConsole.prototype.loop = function () {
     var self = this;
 
     return Q.ninvoke(prompt, "get", [{name: "zoql", message: "$"}])
-        .then((input) => self.loader.zoqlRequest(input.zoql))
+        .then((input) => self.loader.zoqlRequest(input.zoql, "ZOQLInteractiveShell"))
         .then((result) => self.show(result))
         .catch(function(issue){
             if (issue.message !== "canceled") {
