@@ -59,15 +59,15 @@ Transformer.prototype.groupInsertPlansAndCustomers = function (
                             p => p.Invoice.InvoiceNumber),
                   _.groupBy(refunds.filter(r => r.Refund.Status === "Processed"),
                             p => p.Invoice.InvoiceNumber),
-                  _.groupBy(itemAdjs.filter(a => a.Status === "Processed"),
+                  _.groupBy(itemAdjs.filter(a => a.InvoiceItemAdjustment.Status === "Processed"),
                             p => p.Invoice.InvoiceNumber),
-                  _.groupBy(invoiceAdjs.filter(a => a.Status === "Processed"),
+                  _.groupBy(invoiceAdjs.filter(a => a.InvoiceAdjustment.Status === "Processed"),
                             p => p.Invoice.InvoiceNumber),
-                  _.groupBy(creditAdjs.filter(a => a.Status === "Processed"),
+                  _.groupBy(creditAdjs.filter(a => a.CreditBalanceAdjustment.Status === "Processed"),
                             p => p.Invoice.InvoiceNumber),
                   _.groupBy(creditAdjs.filter(a =>
                               a.Refund.RefundNumber !== "" &&
-                              a.Status === "Processed" &&
+                              a.CreditBalanceAdjustment.Status === "Processed" &&
                               a.Invoice.InvoiceNumber === ""),
                             p => p.Account.SamepageId__c || p.Account.AccountNumber)
               ]);
@@ -126,7 +126,7 @@ Transformer.prototype.makeInvoices = function(
                         throw new VError(error, "Failed to process invoice " + invoiceNumber);
                     }
                 })
-                .filter(Boolean)
+                .filter(Boolean) // remove null and empty invoices
                 .filter(invoice => invoice.line_items.length);
 
             logger.trace("Invoices before hanging refunds", invoicesToImport.map(i => i.external_id));
@@ -164,7 +164,8 @@ Transformer.prototype.configure = function (json) {
 Transformer.prototype.filterAndGroupItems = function (invoiceItems) {
     var self = this;
     var itemsByAccountId = _.groupBy(invoiceItems
-                .filter(i => i.Invoice.Status !== "Posted"), //remove invoices that were canceled/just drafted
+                .filter(i => i.Invoice.Status === "Posted") //remove invoices that were canceled/just drafted
+                .filter(i => i.InvoiceItem.AccountingCode !== "FREE"), //remove free items
             (rec) =>
                 rec.Account.SamepageId__c || rec.Account.AccountNumber);
 
@@ -172,7 +173,7 @@ Transformer.prototype.filterAndGroupItems = function (invoiceItems) {
     Object.keys(itemsByAccountId)
         .filter(accountId => itemsByAccountId[accountId]
             // remove never paying accounts
-            .some(item => item.AccountingCode !== "FREE" && item.Invoice.Amount > 0))
+            .some(item => item.Invoice.Amount > 0))
         .filter(accountId => !this.includeAccounts || self.includeAccounts.has(accountId))
         .filter(accountId => !this.excludeAccounts || !self.excludeAccounts.has(accountId))
         .forEach(function (accountId) {

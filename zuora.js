@@ -68,6 +68,7 @@ ZuoraAqua.prototype.pollUntilReady = function(response){
                 if (job.batches.length !== 1) {
                     throw new Error("Hey, this is not implemented! Multiple results: " + job.batches.length + ", job: " + job.id);
                 }
+                logger.info("Downloading %s", name);
 
                 deferred.resolve(self.retrieveFile(job.batches[0].fileId));
             } else if (job.status === "aborted" || job.status === "cancelled") {

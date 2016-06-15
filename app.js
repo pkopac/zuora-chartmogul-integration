@@ -1,4 +1,4 @@
-/* eslint no-process-exit: 0, no-console: ["error", { allow: ["error"] }] */
+/* eslint no-process-exit: 0, no-console: ["error", { allow: ["error", "log"] }] */
 "use strict";
 
 var Q = require("q"),
@@ -8,7 +8,6 @@ var Q = require("q"),
 Q.longStackSupport = true; //DEBUG!
 
 var Loader = require("./loader.js").Loader;
-var Importer = require("./importer.js").Importer;
 var Transformer = require("./transformer.js").Transformer;
 
 var logger = require("log4js").getLogger("app");
@@ -22,17 +21,28 @@ function printHelpAndExit() {
     console.error("Integrate Zuora and ChartMogul.");
     console.error("  -c <file>, --config <file>    Path to config.json.");
     console.error("  -i, --interactive             Run interactive ZOQL console.");
+    console.error("  -o <file>, --output <file>    Path to dump data (use with -q).");
+    console.error("  -q <query>, --query <query>   Run query (use with -o).");
+    console.error("  -d, --dry                     Dry run doesn't interact with Chartmogul.");
     process.exit(1);
 }
 
 function processArgs() {
     argv = minimist(process.argv.slice(2),
-    { string: ["config"],
-      boolean: ["interactive", "help"],
-      alias: {config: "c",
-              interactive: "i",
-              help: "h"},
-      "default": {config: DEFAULT_CONFIG_PATH, interactive: false}
+    { string: ["config", "query", "output"],
+      boolean: ["interactive", "help", "dry"],
+      alias: {
+          config: "c",
+          interactive: "i",
+          help: "h",
+          query: "q",
+          output: "o",
+          dry: "d"
+      },
+      "default": {
+          config: DEFAULT_CONFIG_PATH,
+          interactive: false
+      }
     });
     if (argv.help) {
         printHelpAndExit();
@@ -50,10 +60,42 @@ function runInteractive(configuration) {
     (new InteractiveConsole(aqua)).run();
 }
 
-function runTransformation(configuration) {
+function runQuery(configuration, query, outputFile) {
+    var ZuoraAqua = require("./zuora.js").ZuoraAqua;
+    var aqua = new ZuoraAqua();
+    aqua.configure(configuration.zuora);
+    function writeFile(jsonArray) {
+        Q.ninvoke(fs, "open", outputFile, "w")
+            .then(function(fd) {
+                for (var i = 0; i < jsonArray.length; i++) {
+                    fs.writeSync(fd, JSON.stringify(jsonArray[i], null, 2) + "\n");
+                }
+            });
+    }
+    return aqua.zoqlRequest(query, "Batch")
+        .then(function(jsonArray) {
+            if (outputFile) {
+                writeFile(jsonArray);
+            } else {
+                for (var i = 0; i < jsonArray.length; i++) {
+                    console.log(JSON.stringify(jsonArray[i], null, 2));
+                }
+            }
+
+        });
+}
+
+function runTransformation(configuration, dry) {
     var loader = new Loader();
     loader.configure(configuration.zuora);
 
+    var Importer;
+    if (dry) {
+        Importer = require("./dummyImporter.js").Importer;
+
+    } else {
+        Importer = require("./importer.js").Importer;
+    }
     var importer = new Importer();
     importer.configure(configuration.chartmogul);
 
@@ -76,7 +118,9 @@ function runTransformation(configuration) {
     }
     if (argv.interactive) {
         runInteractive(configuration);
+    } else if (argv.query) {
+        runQuery(configuration, argv.query, argv.output);
     } else {
-        runTransformation(configuration);
+        runTransformation(configuration, argv.dry);
     }
 })();

@@ -34,7 +34,7 @@ Loader.prototype.getAllInvoiceItems = function() {
         "Subscription.CancelledDate,Subscription.Id,Subscription.Name,Subscription.Status,Subscription.SubscriptionEndDate"+
         " from InvoiceItem",
 
-        "getAllInvoiceItems"
+        "all Invoice Items"
     );
 };
 
@@ -47,7 +47,7 @@ Loader.prototype.getAllInvoicePayments = function() {
         "Payment.Amount,Payment.CreatedDate,Payment.Id,Payment.PaymentNumber,Payment.Status"+
         " from InvoicePayment",
 
-        "getAllInvoicePayments"
+        "all Invoice Payments"
     );
 };
 
@@ -58,18 +58,18 @@ Loader.prototype.getAllRefundInvoicePayments = function() {
         "Refund.Amount,Refund.Id,Refund.RefundDate,Refund.RefundNumber,Refund.Status"+
         " from RefundInvoicePayment",
 
-        "getAllRefundInvoicePayments"
+        "all Refund Invoice Payments"
     );
 };
 
 Loader.prototype.getAllInvoiceItemAdjustments = function() {
     return this.aqua.zoqlRequest(
         "select "+
-        "Amount,Id,Status,Type,"+
+        "Amount,Status,Type,"+
         "Invoice.InvoiceNumber,InvoiceItem.Id"+
         " from InvoiceItemAdjustment",
 
-        "getAllInvoiceItemAdjustments"
+        "all Invoice Item Adjustments"
     );
 };
 
@@ -80,7 +80,7 @@ Loader.prototype.getAllInvoiceAdjustments = function() {
         "Invoice.InvoiceNumber"+
         " from InvoiceAdjustment",
 
-        "getAllInvoiceAdjustments"
+        "all Invoice Adjustments"
     );
 };
 
@@ -98,7 +98,7 @@ Loader.prototype.getAllCreditBalanceAdjustments = function() {
         "Refund.Amount,Refund.Id,Refund.RefundDate,Refund.RefundNumber,Refund.Status"+
         " from CreditBalanceAdjustment",
 
-        "getAllCreditBalanceAdjustments"
+        "all Credit Balance Adjustments"
     );
 };
 

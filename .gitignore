@@ -2,5 +2,5 @@
 config.json
 dump/
 node_modules
-test.js
+test.*
 coverage/

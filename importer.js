@@ -35,6 +35,7 @@ Importer.prototype.configure = function (json) {
     cm.config(json);
 };
 
+//TODO: exponential backoff
 Importer.prototype.dropAndCreateDataSource = function(name) {
     logger.trace("dropAndCreateDataSource");
     return cm.import.listDataSources()
@@ -48,7 +49,6 @@ Importer.prototype.dropAndCreateDataSource = function(name) {
                 return cm.import.deleteDataSource(ds.uuid)
                     .then(() => {
                         var d = Q.defer();
-                        logger.debug("Waiting " + CHARTMOGUL_DELAY/1000 + " s for eventual consistency...");
                         var retry = setInterval(() => {
                             cm.import.createDataSource(name)
                             .then((result) => {
@@ -62,6 +62,7 @@ Importer.prototype.dropAndCreateDataSource = function(name) {
                                     clearInterval(retry);
                                     d.reject(err);
                                 }
+                                logger.debug("Waiting " + CHARTMOGUL_DELAY/1000 + " s for Chartmogul to clean DataSource...");
                                 // in case of 422, try again
                             });
 
@@ -124,12 +125,12 @@ Importer.prototype.insertCustomer = function(accountId, info) {
     return cm.import.importCustomer(this.dataSource,
             accountId,
             info.Account.Name,
-            null,
-            null,
-            info.BillToContact.Country,
-            info.BillToContact.State,
-            info.BillToContact.City,
-            info.BillToContact.PostalCode);
+            undefined,
+            undefined,
+            info.BillToContact.Country || undefined,
+            String(info.BillToContact.State) || undefined,
+            info.BillToContact.City || undefined,
+            String(info.BillToContact.PostalCode));
 };
 
 Importer.prototype.insertInvoices = function(customerUuid, invoicesToImport) {

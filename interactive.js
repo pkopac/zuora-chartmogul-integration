@@ -9,11 +9,9 @@ var InteractiveConsole = function(loader) {
 };
 
 InteractiveConsole.prototype.loop = function () {
-    var self = this;
-
     return Q.ninvoke(prompt, "get", [{name: "zoql", message: "$"}])
-        .then((input) => self.loader.zoqlRequest(input.zoql, "ZOQLInteractiveShell"))
-        .then((result) => self.show(result))
+        .then((input) => this.loader.zoqlRequest(input.zoql, "ZOQLInteractiveShell"))
+        .then((result) => this.show(result))
         .catch(function(issue){
             if (issue.message !== "canceled") {
                 logger.error(issue);

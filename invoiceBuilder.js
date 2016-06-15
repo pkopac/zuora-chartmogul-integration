@@ -8,6 +8,8 @@ var logger = require("log4js").getLogger("invoiceBuilder"),
     Invoice = importerModule.Invoice,
     PLANS = importerModule.Importer.PLANS;
 
+require("moment-range");
+
 var InvoiceBuilder = function() {
 
 };
@@ -17,7 +19,7 @@ var InvoiceBuilder = function() {
 
 InvoiceBuilder.MONTHS_UNPAID_TO_CANCEL = 2;
 
-InvoiceBuilder.PERSONAL = "Personal Plus";
+InvoiceBuilder.PERSONAL = {"Personal Plus": 1};
 
 InvoiceBuilder.RATE_TO_PLANS = {
     ANNUALFEE: PLANS.PRO_ANNUALLY,
@@ -25,19 +27,29 @@ InvoiceBuilder.RATE_TO_PLANS = {
     QUARTERLYFEE: PLANS.PRO_QUARTERLY
 };
 
-InvoiceBuilder.PRORATED_STORAGE = {
+InvoiceBuilder.STORAGE_PRORATION_CREDIT = {
     "Additional Storage: 10GB -- Proration Credit": 1,
     "Extra storage: 500 GB -- Proration Credit": 1,
     "Additional Storage: 500GB -- Proration Credit": 1
 };
 
+InvoiceBuilder.STORAGE_PRORATION = {
+    "Additional Storage: 10GB -- Proration": 1,
+    "Extra storage: 500 GB -- Proration": 1,
+    "Additional Storage: 500GB -- Proration": 1
+};
+
 InvoiceBuilder.CURRENCY = {
-    "US Dollar": "USD",
-    "Euro": "EUR"
+    // AQuA vs CSV Export
+    USD: "USD", // "US Dollar": "USD",
+    EUR: "EUR" // "Euro": "EUR"
 };
 
 InvoiceBuilder.USERS_ITEMS = {
-    "Users": 1,
+    "Users": 1
+};
+
+InvoiceBuilder.USERS_PRORATION = {
     "Users -- Proration": 1
 };
 
@@ -102,9 +114,10 @@ InvoiceBuilder.buildInvoice = function(invoiceNumber, invoiceItems, postedDate,
         InvoiceBuilder.addPayments(refunds,
             invoice,
             "Refund");
-        logger.trace("Invoice built", invoice);
+
         return invoice;
     } catch (error) {
+        logger.debug(error.stack);
         throw new VError(error, "Couldn't build invoice " + invoiceNumber);
     }
 };
@@ -116,20 +129,27 @@ InvoiceBuilder.addPayments = function(array, invoice, type) {
     var total = 0;
 
     array.forEach(function (payment) {
-        var p = payment[type];
-        var transaction = {
-            date: moment.utc(p.CreatedDate || p.RefundDate),
-            type: type.toLowerCase(),
-            result: p.Status === "Processed" ? "successful" : "failed",
-            // because one payment number can be assigned to multiple invoices
-            external_id: (type === "Payment" ? p.PaymentNumber : p.RefundNumber) + "-" + p.Invoice.InvoiceNumber
-        };
+        try {
+            var p = payment[type];
+            var transaction = {
+                date: moment.utc(p.CreatedDate || p.RefundDate),
+                type: type.toLowerCase(),
+                result: p.Status === "Processed" ? "successful" : "failed",
+                // because one payment number can be assigned to multiple invoices
+                external_id: (type === "Payment" ? p.PaymentNumber : p.RefundNumber) + "-" + payment.Invoice.InvoiceNumber
+            };
+            
+            if (transaction.result === "successful") {
+                total += p.Amount * 100; //for debug
+            }
 
-        total += p.Amount; //for debug
-        invoice.addTransaction(transaction);
+            invoice.addTransaction(transaction);
+        } catch (error) {
+            logger.trace(payment);
+            throw new VError(error, "Invalid payment");
+        }
     });
 
-    //TODO: test
     var invoiceTotal = invoice.line_items
             .reduce((prev, item) => prev + item.amount_in_cents, 0);
     if (total !== invoiceTotal) {
@@ -152,52 +172,54 @@ InvoiceBuilder.addInvoiceItems = function(invoiceItems, invoice, adjustments, in
             InvoiceBuilder.processCreditAdjustments(creditAdjustments),
         discountMap = InvoiceBuilder.processDiscounts(invoiceItems);
 
-    var items = InvoiceBuilder.itemsForInvoice(invoiceItems,
-        invoiceItems.some(item => item.ChargeName in InvoiceBuilder.USER_PRORATION_CREDIT),
-        invoiceItems.some(item => item.ChargeName in InvoiceBuilder.PRORATED_STORAGE),
+    var processedLineItems = InvoiceBuilder.itemsForInvoice(invoiceItems,
         invoiceAdjustmentAmount,
         discountMap,
         adjustmentMap,
         planUuids);
 
-    var positive = InvoiceBuilder.processNegativeItems(items, invoice);
+    // var positive = InvoiceBuilder.processNegativeItems(items, invoice);
 
+    logger.debug(adjustmentMap);
     InvoiceBuilder.testTotalOfInvoiceEqualsTotalOfLineItems( // runtime sanity check
-        invoiceItems[0], positive, itemAdjustmentAmountTotal, invoiceAdjustmentAmount);
+        invoiceItems[0], processedLineItems, itemAdjustmentAmountTotal, invoiceAdjustmentAmount);
 
-    InvoiceBuilder.cancelLongDueInvoices(invoiceItems[0], positive);
+    InvoiceBuilder.cancelLongDueInvoices(invoiceItems[0], processedLineItems);
 
-    positive.forEach(invoice.addLineItem.bind(invoice));
+    processedLineItems
+        .forEach(invoice.addLineItem.bind(invoice));
 
     return invoice;
 };
 
-InvoiceBuilder.processNegativeItems = function(items, invoice) {
-    var positive = items.filter(function (lineItem) {
-        return lineItem.amount_in_cents >= 0;
-    });
-    items.filter(function (lineItem) {
-        return lineItem.amount_in_cents < 0;
-    }).forEach(function (negativeItem) {
-        var found = positive.find(item => negativeItem.subscription_external_id === item.subscription_external_id);
-        if (!found) {
-            logger.warn("Invoice %s has unmatched negative items!", invoice.external_id, negativeItem);
-            positive.push(negativeItem); // so this unmatched item gets in the result
-            return;
-        }
-        found.amount_in_cents += negativeItem.amount_in_cents;
-        found.quantity -= negativeItem.quantity;
-    });
-    return positive;
-};
+// InvoiceBuilder.processNegativeItems = function(items, invoice) {
+//     var positive = items.filter(function (lineItem) {
+//         return lineItem.amount_in_cents >= 0;
+//     });
+//     items.filter(function (lineItem) {
+//         return lineItem.amount_in_cents < 0;
+//     }).forEach(function (negativeItem) {
+//         var found = positive.find(item => negativeItem.subscription_external_id === item.subscription_external_id);
+//         if (!found) {
+//             logger.warn("Invoice %s has unmatched negative items!", invoice.external_id, negativeItem);
+//             positive.push(negativeItem); // so this unmatched item gets in the result
+//             return;
+//         }
+//         found.amount_in_cents += negativeItem.amount_in_cents;
+//         found.quantity -= negativeItem.quantity;
+//     });
+//     return positive;
+// };
 
-InvoiceBuilder.testTotalOfInvoiceEqualsTotalOfLineItems = function (firstItem, positiveItems, itemAdjustmentAmountTotal, invoiceAdjustmentAmount) {
+InvoiceBuilder.testTotalOfInvoiceEqualsTotalOfLineItems = function (
+    firstItem, items, itemAdjustmentAmountTotal, invoiceAdjustmentAmount) {
     var shouldBeTotal = Math.round((firstItem.Invoice.Amount + itemAdjustmentAmountTotal + invoiceAdjustmentAmount) * 100),
-        total = positiveItems.reduce(function (prev, cur) {
+        total = items.reduce(function (prev, cur) {
             return prev + cur.amount_in_cents;
         }, 0);
     if (total !== shouldBeTotal) {
-        logger.error("total: %d, shouldBeTotal: %d = (%d + %d + %d) * 100",
+        logger.debug(items);
+        logger.error("line items: %d, input: %d = (invoice amount: %d + item adj. total: %d + invoice adj. total: %d) * 100",
             total, shouldBeTotal, firstItem.Invoice.Amount, itemAdjustmentAmountTotal, invoiceAdjustmentAmount);
 
         throw new VError("Total of line items not the total of invoice!");
@@ -223,96 +245,215 @@ InvoiceBuilder.cancelLongDueInvoices = function (firstItem, positiveItems) {
     }
 };
 
-InvoiceBuilder.itemsForInvoice = function(invoiceItems, proratedUsers,
-    proratedStorage, invoiceAdjustmentAmount, discountMap, adjustmentMap, planUuids) {
+//TODO: simplify filtering
+InvoiceBuilder.itemsForInvoice = function(invoiceItems, invoiceAdjustmentAmount,
+    discountMap, adjustmentMap, planUuids) {
 
-    return invoiceItems
-        // Free items don't influence anything in any way
-        .filter(item => item.AccountingCode !== "FREE")
-        .map(function (item) {
-            var process = false,
-                prorated = false,
-                itemName = item.ChargeName;
+    var users = [],
+        storage = [],
+        personal = [],
+        proratedUsersCredit = [],
+        proratedStorageCredit = [],
+        proratedUsers = [],
+        proratedStorage = [];
 
+    invoiceItems
+    .filter(item => item.InvoiceItem.ChargeAmount) // ignore 0 charges
+    .forEach(function(item) {
+        var name = item.InvoiceItem.ChargeName;
+        if (name in InvoiceBuilder.USERS_ITEMS) {
+            users.push(item);
+        } else if (name in InvoiceBuilder.STORAGE_ITEMS) {
+            storage.push(item);
+        } else if (name in InvoiceBuilder.USER_PRORATION_CREDIT) {
+            proratedUsersCredit.push(item);
+        } else if (name in InvoiceBuilder.USERS_PRORATION) {
+            proratedUsers.push(item);
+        } else if (name in InvoiceBuilder.STORAGE_PRORATION_CREDIT) {
+            proratedStorageCredit.push(item);
+        } else if (name in InvoiceBuilder.STORAGE_PRORATION) {
+            proratedStorage.push(item);
+        } else if (name in InvoiceBuilder.PERSONAL) {
+            personal.push(item);
+        } else if (name in InvoiceBuilder.DISCOUNTS) {
+            //do nothing
+        } else {
+            logger.debug(item);
+            throw new VError("Unknown item type: " + name);
+        }
+    });
 
-            if (itemName in InvoiceBuilder.USERS_ITEMS || itemName in InvoiceBuilder.USER_PRORATION_CREDIT) {
-                process = InvoiceBuilder.USERS_ITEMS;
-                prorated = proratedUsers || itemName === "Users -- Proration";
-            } else if ((itemName in InvoiceBuilder.STORAGE_ITEMS || itemName in InvoiceBuilder.PRORATED_STORAGE) &&
-                item.Quantity !== 0 && item.UOM !== 0) {
-                process = InvoiceBuilder.STORAGE_ITEMS;
-                prorated = proratedStorage;
-            } else if (itemName === InvoiceBuilder.PERSONAL) {
-                process = InvoiceBuilder.PERSONAL;
+    return InvoiceBuilder.processItems(
+        proratedUsers.concat(proratedStorage, users, personal, storage),
+        proratedUsersCredit, proratedStorageCredit,
+        {discountMap,
+            adjustmentMap,
+            planUuids,
+            invoiceAdjustmentAmount
+        });
+};
+
+InvoiceBuilder.checkItemSanity = function(item) {
+    if (!item.InvoiceItem.ServiceStartDate) {
+        throw new VError("ServiceStartDate " + String(item.InvoiceItem.ServiceStartDate));
+    }
+    if (!item.InvoiceItem.ServiceEndDate) {
+        throw new VError("ServiceEndDate " + String(item.InvoiceItem.ServiceEndDate));
+    }
+    // if ((item.InvoiceItem.Quantity === 0 || item.InvoiceItem.UnitPrice === 0) && item.InvoiceItem.ChargeAmount !== 0) {
+    //     logger.error(item);
+    //     throw new VError("Charge should be 0!");
+    // }
+};
+
+InvoiceBuilder.processItems = function(
+    items, proratedUsersCredit, proratedStorageCredit, context) {
+
+    var discountMap = context.discountMap,
+        adjustmentMap = context.adjustmentMap,
+        planUuids = context.planUuids;
+
+    logger.trace(items.map(i=>i.InvoiceItem.ChargeName));
+    var result = items
+        // Cannot - because of downgrades to free
+        //.filter(item => item.InvoiceItem.Quantity !== 0 && item.InvoiceItem.UOM !== 0)
+        .map(item => {
+            logger.trace("InvoiceItem.Id %s - %s...", item.InvoiceItem.Id, item.InvoiceItem.ChargeName);
+            InvoiceBuilder.checkItemSanity(item);
+
+            /* Use discounts, adjustments and invoice adjustments */
+            var discount = (discountMap[item.InvoiceItem.Id] || 0) + (adjustmentMap[item.InvoiceItem.Id] || 0),
+                amount = item.InvoiceItem.ChargeAmount + discount;
+
+            logger.trace("discount %d, adjustment %d, invoiceAdjustmentAmount %d",
+                discountMap[item.InvoiceItem.Id] || 0, adjustmentMap[item.InvoiceItem.Id] || 0, context.invoiceAdjustmentAmount || 0);
+
+            if (context.invoiceAdjustmentAmount < 0) {
+                if (amount + context.invoiceAdjustmentAmount < 0) {
+                    discount -= amount;
+                    context.invoiceAdjustmentAmount += amount;
+                    amount = 0;
+                } else if (amount + context.invoiceAdjustmentAmount > 0) {
+                    discount += context.invoiceAdjustmentAmount;
+                    amount -= context.invoiceAdjustmentAmount;
+                    context.invoiceAdjustmentAmount = 0;
+                } else { // amount + invoiceAdjustmentAmount === 0
+                    discount += amount;
+                    context.invoiceAdjustmentAmount = 0;
+                    amount = 0;
+                }
+            } else if (context.invoiceAdjustmentAmount > 0) {
+                throw new VError("Positive invoice adjustment amount not yet supported!");
             }
 
-            if (process) {
-                logger.trace("Processing of invoice item %s...", itemName);
-                if (!item.ServiceStartDate) {
-                    throw new VError("ServiceStartDate " + item.ServiceStartDate);
+            // adjusted to zero => good for nothing - are they?
+            // the storage is for free usually...
+            //TODO: how to include storage? it's different kind of quantity, so it would screw the stats
+
+
+            //TODO: refactor sections out into functions
+            /* Use proration credits */
+            var prorated = false,
+                quantity = item.InvoiceItem.Quantity,
+                credits = (item.InvoiceItem.ChargeName in InvoiceBuilder.USERS_PRORATION ||
+                           item.InvoiceItem.ChargeName in InvoiceBuilder.USERS_ITEMS) ?
+                            proratedUsersCredit : proratedStorageCredit;
+            var index = credits.length - 1;
+            while (index >= 0) {
+                let credit = credits[index];
+
+                if (credit.Subscription.Name !== item.Subscription.Name ||
+                    !InvoiceBuilder.serviceIntersection(credit, item)) {
+                    index--;
+                    continue;
                 }
-                if (!item.ServiceEndDate) {
-                    throw new VError("ServiceEndDate " + item.ServiceEndDate);
-                }
-                var id = item.Id;
-                var discount = discountMap[id] || 0;
-                var adjustment = adjustmentMap[id] || 0;
-                logger.trace("discount %d, adjustment %d, invoiceAdjustmentAmount %d", discount, adjustment, invoiceAdjustmentAmount);
-                discount += adjustment + invoiceAdjustmentAmount;
-                var amount = Math.round((item.ChargeAmount + discount) * 100);
+                prorated = true; // amount & quantity = change/differential
 
-                invoiceAdjustmentAmount = 0; // apply only once!
+                var discountOnProration = discountMap[credit.Id] || 0; // yes, really! See INV00003933
+                //we are subtracting from amount (credit is negative)
+                logger.debug("Applying credit %d with discount %d and quantity %d",
+                    credit.InvoiceItem.ChargeAmount, discountOnProration, item.InvoiceItem.Quantity);
 
-                // if (prorationCredit && hasServiceIntersection(prorationCredit, item) &&
-                //     process === USERS_ITEMS) {
-                //     var discountOnProration = discountMap[prorationCredit[INVOICE_ITEM.ID]] || 0; // yes, really! See INV00003933
-                //
-                //     amount += (prorationCredit[INVOICE_ITEM.CHARGE_AMOUNT] + discountOnProration) * 100;
-                // }
-                //
-                // if ((item[IN.QUANTITY] === 0 || item[IN.UNIT_PRICE] === 0) && amount !== 0) {
-                //     logger.error(item);
-                //     logger.error("Charge should be 0!");
-                // }
+                amount += (credit.InvoiceItem.ChargeAmount + discountOnProration);
+                // this can result in negative quantity => prorated downgrade
+                quantity -= item.InvoiceItem.Quantity;
 
-                discount = discount * -100;
-                if (discount < 0) { // Negative discount shouldn't be discount, but adjustment!
-                    // discount = 0;
-                    throw new VError("Negative discount! Charge: " + item.ChargeName);
-                }
-
-                amount = Math.round(amount);
-                if (!amount) {
-                    return; // zero items are good for nothing
-                }
-
-                //HACK: Chartmogul doesn't allow start == end
-                let start = moment.utc(item.ServiceStartDate),
-                    end = moment.utc(item.ServiceEndDate);
-                if (start === end) {
-                    end = moment.utc(end).add(1, "day").toDate().getTime();
-                }
-
-                // compile line item for chartmogul
-                return {
-                    type: "subscription",
-                    // for deleted subscriptions we can't get the number
-                    subscription_external_id: item.Subscription.Name || item.Subscription.Id,
-                    plan_uuid: planUuids[InvoiceBuilder.RATE_TO_PLANS[item.AccountingCode]],
-                    service_period_start: start,
-                    service_period_end: end,
-                    amount_in_cents: amount, // in cents
-                    cancelled_at: InvoiceBuilder.getSubscriptionCanceledDate(item),
-                    prorated: prorated,
-                    quantity: item.Quantity,
-                    //discount_code: undefined,
-                    discount_amount_in_cents: Math.round(discount),
-                    tax_amount_in_cents: item.TaxAmount,
-                    external_id: item.Id
-                };
+                credits.splice(index, 1);
+                index--;
             }
+
+            if (!prorated &&
+                (item.InvoiceItem.ChargeName in InvoiceBuilder.USERS_PRORATION ||
+                item.InvoiceItem.ChargeName in InvoiceBuilder.STORAGE_PRORATION)) {
+                throw new VError("Couldn't find credit, but item is prorated!");
+            }
+
+            /* chartmogul number format = in cents, discount positive number */
+            amount = Math.round(amount * 100);
+            discount = discount * -100;
+
+            // if (!amount) {
+            //     return;
+            // }
+
+            //HACK: Chartmogul doesn't allow start == end
+            let start = moment.utc(item.InvoiceItem.ServiceStartDate),
+                end = moment.utc(item.InvoiceItem.ServiceEndDate);
+            if (start === end) {
+                end = moment.utc(end).add(1, "day").toDate().getTime();
+            }
+
+            // compile line item for chartmogul
+            return {
+                type: "subscription",
+                // for deleted subscriptions we can't get the right number
+                subscription_external_id: item.Subscription.Name || item.Subscription.Id,
+                plan_uuid: planUuids[InvoiceBuilder.RATE_TO_PLANS[item.InvoiceItem.AccountingCode]],
+                service_period_start: start,
+                service_period_end: end,
+                amount_in_cents: amount, // in cents
+                cancelled_at: InvoiceBuilder.getSubscriptionCanceledDate(item),
+                prorated: prorated,
+                quantity,
+                //discount_code: undefined,
+                discount_amount_in_cents: Math.round(discount),
+                tax_amount_in_cents: item.InvoiceItem.TaxAmount,
+                external_id: item.InvoiceItem.Id
+            };
+
         })
         .filter(Boolean);
+
+    result = result.concat(InvoiceBuilder.handleUnmatchedCredits(
+                            proratedUsersCredit, proratedStorageCredit, context)
+                        );
+
+    return result;
+};
+
+/**
+ * Let's suppose missing "Users" means => 0
+ */
+InvoiceBuilder.handleUnmatchedCredits = function(proratedUsersCredit, proratedStorageCredit, context) {
+    var result = [];
+    if (proratedUsersCredit.length) {
+        var items = proratedUsersCredit.map(function(credit) {
+            var copy = JSON.parse(JSON.stringify(credit));
+            copy.InvoiceItem.ChargeName = "Users -- Proration";
+            copy.InvoiceItem.ChargeAmount = 0;
+            copy.InvoiceItem.Quantity = 0;
+            return copy;
+        });
+        result = result.concat(InvoiceBuilder.processItems(
+            items, proratedUsersCredit, proratedStorageCredit, context)
+        );
+        //throw new VError("Unmatched user credit items: " + context.proratedUsersCredit.length);
+    }
+    if (proratedStorageCredit.length) {
+        logger.debug(proratedStorageCredit);
+        throw new VError("Unmatched storage credit items: " + proratedStorageCredit.length);
+    }
+    return result;
 };
 
 InvoiceBuilder.processAdjustments = function(adjustments) {
@@ -320,12 +461,12 @@ InvoiceBuilder.processAdjustments = function(adjustments) {
     var itemAdjustmentAmountTotal = 0;
     if (adjustments && adjustments.length) {
         adjustments.forEach(function (adjustment) {
-            var amount = adjustment.Amount;
-            if (adjustment.Type !== "Charge") {
+            var amount = adjustment.InvoiceItemAdjustment.Amount;
+            if (adjustment.InvoiceItemAdjustment.Type !== "Charge") {
                 amount = -amount;
             }
             itemAdjustmentAmountTotal += amount;
-            adjustmentMap[adjustment.Id] = amount;
+            adjustmentMap[adjustment.InvoiceItem.Id] = amount;
         });
     }
     return [adjustmentMap, itemAdjustmentAmountTotal];
@@ -352,12 +493,12 @@ InvoiceBuilder.processInvoiceAdjustments = function(invoiceAdjustments) {
  */
 InvoiceBuilder.processDiscounts = function(invoiceItems) {
     var discountMap = {};
-    var discounts = invoiceItems.filter(i => i.ChargeName in InvoiceBuilder.DISCOUNTS);
-    if (discounts.length) {
-        discounts.forEach(function (discount) {
-            discountMap[discount.AppliedToInvoiceItemId] = discount.ChargeAmount;
+    invoiceItems
+        .filter(i => i.InvoiceItem.ChargeName in InvoiceBuilder.DISCOUNTS)
+        .forEach(function (discount) {
+            discountMap[discount.InvoiceItem.AppliedToInvoiceItemId] = discount.InvoiceItem.ChargeAmount;
         });
-    }
+
     return discountMap;
 };
 
@@ -365,8 +506,8 @@ InvoiceBuilder.processCreditAdjustments = function(creditAdjustments) {
     var adjustments = 0;
     if (creditAdjustments && creditAdjustments.length) {
         creditAdjustments.forEach(function (creditAdjustment) {
-            var amount = creditAdjustment.Amount;
-            if (creditAdjustment.Type !== "Increase") {
+            var amount = creditAdjustment.CreditBalanceAdjustment.Amount;
+            if (creditAdjustment.CreditBalanceAdjustment.Type !== "Increase") {
                 amount = -amount;
             }
             adjustments += amount;
@@ -387,8 +528,27 @@ InvoiceBuilder.getSubscriptionCanceledDate = function(item) {
         return moment.utc(item.Subscription.CancelledDate);
     } else {
         if (!item.Subscription.Name) {
-            return moment.utc(item.ServiceEndDate);
+            return moment.utc(item.InvoiceItem.ServiceEndDate);
         }
+    }
+};
+
+InvoiceBuilder.serviceIntersection = function(a, b) {
+    return InvoiceBuilder.rangeIntersection(
+        a.InvoiceItem.ServiceStartDate, a.InvoiceItem.ServiceEndDate,
+        b.InvoiceItem.ServiceStartDate, b.InvoiceItem.ServiceEndDate
+    );
+};
+
+InvoiceBuilder.rangeIntersection = function(aStart, aEnd, bStart, bEnd) {
+    var rangeA = moment.range(moment.utc(aStart), moment.utc(aEnd)),
+        rangeB = moment.range(moment.utc(bStart), moment.utc(bEnd)),
+        intersection = rangeA.intersect(rangeB);
+
+    if (intersection) {
+        return intersection.diff("days");
+    } else {
+        return 0;
     }
 };
 

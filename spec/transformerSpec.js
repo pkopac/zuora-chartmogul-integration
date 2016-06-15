@@ -3,7 +3,7 @@
 
 var Importer = require("../importer.js").Importer;
 var Transformer = require("../transformer.js").Transformer;
-var diff = require('deep-diff').diff;
+var diff = require("deep-diff").diff;
 
 describe("Transformer", function(){
     it("inserts one customer per account", function(){
@@ -24,15 +24,15 @@ describe("Transformer", function(){
     const ACCOUNT1 = "acc1",
         ACCOUNT2 = "acc2",
         ACCOUNT3 = "acc3",
-        ACC1_ITEM1 = {AccountingCode: "FREE", Account: {AccountNumber: ACCOUNT1}, Invoice: {Amount : 0}},
-        ACC1_ITEM2 = {AccountingCode: "NON_FREE", Account: {AccountNumber: ACCOUNT1}, Invoice: {Amount : 10}},
+        ACC1_ITEM1 = {InvoiceItem: {AccountingCode: "FREE"}, Account: {AccountNumber: ACCOUNT1}, Invoice: {Amount : 0, Status: "Posted"}},
+        ACC1_ITEM2 = {InvoiceItem: {AccountingCode: "NON_FREE"}, Account: {AccountNumber: ACCOUNT1}, Invoice: {Amount : 10, Status: "Posted"}},
         ITEMS = [ACC1_ITEM1,
                 // ACCOUNT2 should be filtered
-                {AccountingCode: "FREE", Account: {AccountNumber: ACCOUNT2}, Invoice: {Amount : 0}},
+                {InvoiceItem: {AccountingCode: "FREE"}, Account: {AccountNumber: ACCOUNT2}, Invoice: {Amount : 0}},
                 // ACCOUNT1 has a non-free invoice item that costed something
                 ACC1_ITEM2,
                 // ACCOUNT3 should be filtered, since it paid nothing ever
-                {AccountingCode: "NON_FREE", Account: {AccountNumber: ACCOUNT3}, Invoice: {Amount : 0}}];
+                {InvoiceItem: {AccountingCode: "NON_FREE"}, Account: {AccountNumber: ACCOUNT3}, Invoice: {Amount : 0}}];
 
     it("filters out accounts with only FREE items that haven't paid anything", function(){
         var loader = {},
@@ -42,7 +42,7 @@ describe("Transformer", function(){
         var result = tested.filterAndGroupItems(ITEMS);
 
         expect(result[ACCOUNT1])
-            .toEqual([ACC1_ITEM1, ACC1_ITEM2]);
+            .toEqual([ACC1_ITEM2]);
         expect(result[ACCOUNT2])
             .toBe(undefined);
         expect(result[ACCOUNT3])
@@ -64,16 +64,18 @@ describe("Transformer", function(){
             PostedDate: "2012-12-07T14:53:49+0000",
             DueDate: "2013-01-06"
         },
-        AccountingCode: "MONTHLYFEE",
-        ChargeAmount: 10,
-        Quantity: 1,
-        ChargeName: "Users",
-        Id: "ITEM-001",
-        "ServiceEndDate": "2013-03-09",
-        "ServiceStartDate": "2012-12-10",
+        InvoiceItem: {
+            AccountingCode: "MONTHLYFEE",
+            ChargeAmount: 10,
+            Quantity: 1,
+            ChargeName: "Users",
+            Id: "ITEM-001",
+            "ServiceEndDate": "2013-03-09",
+            "ServiceStartDate": "2012-12-10"
+        },
         Account: {
             AccountNumber: ACCOUNT1,
-            Currency: "US Dollar"
+            Currency: "USD"
         },
         Subscription: {
             Name: "SUB-001"
@@ -128,7 +130,7 @@ describe("Transformer", function(){
 
 
 
-        it("prorated downgrade", function(){
+        xit("prorated downgrade", function(){
             var loader = {},
                 importer = jasmine.createSpyObj("importer", ["insertInvoices"]);
             var tested = new Transformer(loader, importer);
@@ -140,16 +142,18 @@ describe("Transformer", function(){
                     PostedDate: "2012-12-07T14:53:49+0000",
                     DueDate: "2013-01-06"
                 },
-                AccountingCode: "MONTHLYFEE",
-                ChargeAmount: 20,
-                Quantity: 2,
-                ChargeName: "Users -- Proration Credit",
-                Id: "ITEM-001",
-                "ServiceEndDate": "2013-03-09",
-                "ServiceStartDate": "2012-12-10",
+                InvoiceItem: {
+                    AccountingCode: "MONTHLYFEE",
+                    ChargeAmount: 20,
+                    Quantity: 2,
+                    ChargeName: "Users -- Proration Credit",
+                    Id: "ITEM-001",
+                    "ServiceEndDate": "2013-03-09",
+                    "ServiceStartDate": "2012-12-10"
+                },
                 Account: {
                     AccountNumber: ACCOUNT1,
-                    Currency: "US Dollar"
+                    Currency: "USD"
                 },
                 Subscription: {
                     Name: "SUB-001"
@@ -163,16 +167,18 @@ describe("Transformer", function(){
                     PostedDate: "2012-12-07T14:53:49+0000",
                     DueDate: "2013-01-06"
                 },
-                AccountingCode: "MONTHLYFEE",
-                ChargeAmount: 10,
-                Quantity: 2,
-                ChargeName: "Users -- Proration",
-                Id: "ITEM-001",
-                "ServiceEndDate": "2013-03-09",
-                "ServiceStartDate": "2013-02-01",
+                InvoiceItem: {
+                    AccountingCode: "MONTHLYFEE",
+                    ChargeAmount: 10,
+                    Quantity: 2,
+                    ChargeName: "Users -- Proration",
+                    Id: "ITEM-001",
+                    "ServiceEndDate": "2013-03-09",
+                    "ServiceStartDate": "2013-02-01"
+                },
                 Account: {
                     AccountNumber: ACCOUNT1,
-                    Currency: "US Dollar"
+                    Currency: "USD"
                 },
                 Subscription: {
                     Name: "SUB-001"
