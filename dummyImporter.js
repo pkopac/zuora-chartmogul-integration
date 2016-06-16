@@ -52,8 +52,8 @@ Importer.prototype.insertInvoices = function(customerUuid, invoicesToImport) {
     logger.debug("Saving invoices", invoicesToImport.map(invo => invo.external_id));
     return Q.all(invoicesToImport.map(
         invo => Q.ninvoke(fs, "writeFile",
-            "./dump/" + invo.external_id + ".json",
-            JSON.stringify(invo, null, 2))
+                            "./dump/" + invo.external_id + ".json",
+                            JSON.stringify(invo, null, 2))
     ));
 };
 

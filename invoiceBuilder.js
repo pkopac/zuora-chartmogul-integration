@@ -107,13 +107,19 @@ InvoiceBuilder.buildInvoice = function(invoiceNumber, invoiceItems, postedDate,
             plansById
         );
 
-        InvoiceBuilder.addPayments(payments,
+        let totalPayments = InvoiceBuilder.addPayments(payments,
             invoice,
             "Payment");
 
-        InvoiceBuilder.addPayments(refunds,
+        let totalRefunds = InvoiceBuilder.addPayments(refunds,
             invoice,
             "Refund");
+
+        var totalCreditAdjusted = InvoiceBuilder.testCreditAdjustmentCorrect(invoice, creditAdjs, totalPayments, totalRefunds);
+
+        //HACK: chartmogul doesn't allow partial refunds, let's ignore them :(
+        //TODO: there are multiple cases when this can happen - can be an error, a late discount done wrong etc.
+        InvoiceBuilder.removePartialRefunds(invoice, totalPayments, totalRefunds, totalCreditAdjusted);
 
         return invoice;
     } catch (error) {
@@ -122,13 +128,71 @@ InvoiceBuilder.buildInvoice = function(invoiceNumber, invoiceItems, postedDate,
     }
 };
 
-InvoiceBuilder.addPayments = function(array, invoice, type) {
-    if (!array || !array.length) {
+InvoiceBuilder.removePartialRefunds = function(invoice, totalPayments, totalRefunds, totalCreditAdjusted) {
+    if (totalPayments === 0 && totalRefunds === 0) {
+        return; // nothing paid or refunded
+    }
+
+    var invoiceTotal = Math.round(invoice.line_items.reduce(
+                        (prev, item) => prev + item.amount_in_cents, 0));
+
+    if (invoiceTotal === totalPayments &&
+        (totalPayments === totalRefunds || totalRefunds === 0) &&
+        totalCreditAdjusted === 0) {
+        return; // is paid and optionally refunded (both in full)
+    }
+
+    // partial refund => ignore
+    var clearPayment = totalPayments - totalRefunds + totalCreditAdjusted;
+    if (clearPayment !== 0 && clearPayment === invoiceTotal) {
+        invoice.transactions = invoice.transactions.filter(t => t.type === "payment");
+        return;
+    }
+
+    throw new VError("Unexpected payment case: invoiceTotal %d, totalPayments %d, totalRefunds %d, totalCreditAdjusted %d, clearPayment %d",
+        invoiceTotal, totalPayments, totalRefunds, totalCreditAdjusted, clearPayment);
+};
+
+
+/**
+ * Credit adjustment behaves as payment, it just doesn't go anywhere, so
+ * it doesn't affect cashflow. But we should still check it's correct.
+ * TODO: what with partially adjusted/paid/refunded invoices?
+ */
+InvoiceBuilder.testCreditAdjustmentCorrect = function(invoice, creditAdjs, totalPayments, totalRefunds) {
+    let creditAdjusted = InvoiceBuilder.processCreditAdjustments(creditAdjs),
+        invoiceTotal = Math.round(invoice.line_items.reduce(
+                            (prev, item) => prev + item.amount_in_cents, 0)),
+        successfulTransactions = invoice.transactions.filter((tr) => tr.result === "successful").length;
+
+    if (creditAdjusted) {
+        creditAdjusted = Math.round(-creditAdjusted * 100);
+        if (totalPayments || totalRefunds) {
+            //TODO: if we want correct cash flow in Chartmogul, we'd need to
+            // split the invoice, because CM doesn't allow partial payment.
+            logger.warn("Invoice has both payments/refunds and credit adjustment! Cashflow incorrect.");
+            return creditAdjusted;
+        }
+        if (creditAdjusted !== invoiceTotal) {
+            logger.debug("creditAdjusted !== invoiceTotal: %d !== %d", creditAdjusted, invoiceTotal);
+            throw new VError("Credit adjusted, but not the same as invoice amount!");
+        } else if(successfulTransactions) {
+            throw new VError("Partially refunded/paid and credit adjusted!");
+        }
+    }
+    return creditAdjusted;
+};
+
+/**
+ * @param type Refund|Payment
+ */
+InvoiceBuilder.addPayments = function(zuoraPayments, invoice, type) {
+    if (!zuoraPayments || !zuoraPayments.length) {
         return 0;
     }
     var total = 0;
 
-    array.forEach(function (payment) {
+    zuoraPayments.forEach(function (payment) {
         try {
             var p = payment[type];
             var transaction = {
@@ -138,9 +202,15 @@ InvoiceBuilder.addPayments = function(array, invoice, type) {
                 // because one payment number can be assigned to multiple invoices
                 external_id: (type === "Payment" ? p.PaymentNumber : p.RefundNumber) + "-" + payment.Invoice.InvoiceNumber
             };
-            
+
             if (transaction.result === "successful") {
-                total += p.Amount * 100; //for debug
+                let amount;
+                if (type === "Payment") {
+                    amount = payment.InvoicePayment.Amount;
+                } else if (type === "Refund") {
+                    amount = (payment.RefundInvoicePayment || payment.CreditBalanceAdjustment).RefundAmount;
+                }
+                total += amount * 100; //for debug
             }
 
             invoice.addTransaction(transaction);
@@ -150,13 +220,7 @@ InvoiceBuilder.addPayments = function(array, invoice, type) {
         }
     });
 
-    var invoiceTotal = invoice.line_items
-            .reduce((prev, item) => prev + item.amount_in_cents, 0);
-    if (total !== invoiceTotal) {
-        throw new VError("Payments/Refunds (" + total + ") don't equal invoice total: " + invoiceTotal + "!");
-    }
-
-    return total;
+    return Math.round(total);
 };
 
 InvoiceBuilder.addInvoiceItems = function(invoiceItems, invoice, adjustments, invoiceAdjustments, creditAdjustments, planUuids) {
@@ -168,8 +232,7 @@ InvoiceBuilder.addInvoiceItems = function(invoiceItems, invoice, adjustments, in
     var processedAdjustments = InvoiceBuilder.processAdjustments(adjustments),
         adjustmentMap = processedAdjustments[0],
         itemAdjustmentAmountTotal = processedAdjustments[1],
-        invoiceAdjustmentAmount = InvoiceBuilder.processInvoiceAdjustments(invoiceAdjustments) +
-            InvoiceBuilder.processCreditAdjustments(creditAdjustments),
+        invoiceAdjustmentAmount = InvoiceBuilder.processInvoiceAdjustments(invoiceAdjustments),
         discountMap = InvoiceBuilder.processDiscounts(invoiceItems);
 
     var processedLineItems = InvoiceBuilder.itemsForInvoice(invoiceItems,
@@ -177,8 +240,6 @@ InvoiceBuilder.addInvoiceItems = function(invoiceItems, invoice, adjustments, in
         discountMap,
         adjustmentMap,
         planUuids);
-
-    // var positive = InvoiceBuilder.processNegativeItems(items, invoice);
 
     logger.debug(adjustmentMap);
     InvoiceBuilder.testTotalOfInvoiceEqualsTotalOfLineItems( // runtime sanity check
@@ -246,7 +307,8 @@ InvoiceBuilder.cancelLongDueInvoices = function (firstItem, positiveItems) {
 };
 
 //TODO: simplify filtering
-InvoiceBuilder.itemsForInvoice = function(invoiceItems, invoiceAdjustmentAmount,
+InvoiceBuilder.itemsForInvoice = function(invoiceItems,
+    invoiceAdjustmentAmount,
     discountMap, adjustmentMap, planUuids) {
 
     var users = [],
@@ -328,28 +390,16 @@ InvoiceBuilder.processItems = function(
             logger.trace("discount %d, adjustment %d, invoiceAdjustmentAmount %d",
                 discountMap[item.InvoiceItem.Id] || 0, adjustmentMap[item.InvoiceItem.Id] || 0, context.invoiceAdjustmentAmount || 0);
 
-            if (context.invoiceAdjustmentAmount < 0) {
-                if (amount + context.invoiceAdjustmentAmount < 0) {
-                    discount -= amount;
-                    context.invoiceAdjustmentAmount += amount;
-                    amount = 0;
-                } else if (amount + context.invoiceAdjustmentAmount > 0) {
-                    discount += context.invoiceAdjustmentAmount;
-                    amount -= context.invoiceAdjustmentAmount;
-                    context.invoiceAdjustmentAmount = 0;
-                } else { // amount + invoiceAdjustmentAmount === 0
-                    discount += amount;
-                    context.invoiceAdjustmentAmount = 0;
-                    amount = 0;
-                }
-            } else if (context.invoiceAdjustmentAmount > 0) {
-                throw new VError("Positive invoice adjustment amount not yet supported!");
-            }
-
-            // adjusted to zero => good for nothing - are they?
             // the storage is for free usually...
             //TODO: how to include storage? it's different kind of quantity, so it would screw the stats
 
+            //HACK: Chartmogul doesn't allow start == end, also service intersection must be at least 1 day
+            var start = moment.utc(item.InvoiceItem.ServiceStartDate),
+                end = moment.utc(item.InvoiceItem.ServiceEndDate);
+            if (start.isSame(end)) {
+                end = moment.utc(end).add(1, "day").toDate().getTime();
+                item.InvoiceItem.ServiceEndDate = end;
+            }
 
             //TODO: refactor sections out into functions
             /* Use proration credits */
@@ -362,6 +412,13 @@ InvoiceBuilder.processItems = function(
             while (index >= 0) {
                 let credit = credits[index];
 
+                //HACK: service intersection must be at least 1 day
+                let creditStart = moment.utc(credit.InvoiceItem.ServiceStartDate),
+                    creditEnd = moment.utc(credit.InvoiceItem.ServiceEndDate);
+                if (creditStart.isSame(creditEnd)) { //change source data, but just once
+                    credit.InvoiceItem.ServiceEndDate = moment.utc(end).add(1, "day").toDate().getTime();
+                }
+
                 if (credit.Subscription.Name !== item.Subscription.Name ||
                     !InvoiceBuilder.serviceIntersection(credit, item)) {
                     index--;
@@ -369,14 +426,15 @@ InvoiceBuilder.processItems = function(
                 }
                 prorated = true; // amount & quantity = change/differential
 
-                var discountOnProration = discountMap[credit.Id] || 0; // yes, really! See INV00003933
+                // yes, really! See INV00003933, INV00004009
+                let discountOnProration = (discountMap[credit.InvoiceItem.Id] || 0) + (adjustmentMap[credit.InvoiceItem.Id] || 0);
                 //we are subtracting from amount (credit is negative)
                 logger.debug("Applying credit %d with discount %d and quantity %d",
                     credit.InvoiceItem.ChargeAmount, discountOnProration, item.InvoiceItem.Quantity);
 
                 amount += (credit.InvoiceItem.ChargeAmount + discountOnProration);
                 // this can result in negative quantity => prorated downgrade
-                quantity -= item.InvoiceItem.Quantity;
+                quantity -= credit.InvoiceItem.Quantity;
 
                 credits.splice(index, 1);
                 index--;
@@ -385,23 +443,39 @@ InvoiceBuilder.processItems = function(
             if (!prorated &&
                 (item.InvoiceItem.ChargeName in InvoiceBuilder.USERS_PRORATION ||
                 item.InvoiceItem.ChargeName in InvoiceBuilder.STORAGE_PRORATION)) {
-                throw new VError("Couldn't find credit, but item is prorated!");
+                logger.warn("Couldn't find credit, but item is prorated! Invoice: %s", item.Invoice.InvoiceNumber);
+            }
+
+            /* Deal with invoice adjustments */
+
+            if (context.invoiceAdjustmentAmount < 0) {
+                discount -= amount;
+            }
+
+            // perfect match
+            if (amount + context.invoiceAdjustmentAmount === 0) {
+                context.invoiceAdjustmentAmount = 0;
+                amount = 0;
+            }
+
+            // partial match
+            if (Math.sign(amount) !== Math.sign(context.invoiceAdjustmentAmount)) {
+                if (Math.abs(amount) > Math.abs(context.invoiceAdjustmentAmount)) {
+                    amount += context.invoiceAdjustmentAmount;
+                    context.invoiceAdjustmentAmount = 0;
+                } else {
+                    context.invoiceAdjustmentAmount += amount;
+                    amount = 0;
+                }
             }
 
             /* chartmogul number format = in cents, discount positive number */
             amount = Math.round(amount * 100);
-            discount = discount * -100;
+            discount = Math.round(discount * -100);
 
             // if (!amount) {
             //     return;
             // }
-
-            //HACK: Chartmogul doesn't allow start == end
-            let start = moment.utc(item.InvoiceItem.ServiceStartDate),
-                end = moment.utc(item.InvoiceItem.ServiceEndDate);
-            if (start === end) {
-                end = moment.utc(end).add(1, "day").toDate().getTime();
-            }
 
             // compile line item for chartmogul
             return {
@@ -440,8 +514,11 @@ InvoiceBuilder.handleUnmatchedCredits = function(proratedUsersCredit, proratedSt
         var items = proratedUsersCredit.map(function(credit) {
             var copy = JSON.parse(JSON.stringify(credit));
             copy.InvoiceItem.ChargeName = "Users -- Proration";
+            // this basically means this subscription has been downgraded to zero
             copy.InvoiceItem.ChargeAmount = 0;
             copy.InvoiceItem.Quantity = 0;
+            copy.InvoiceItem.Id += "-a"; // so it doesn't match against discounts
+
             return copy;
         });
         result = result.concat(InvoiceBuilder.processItems(
@@ -476,8 +553,8 @@ InvoiceBuilder.processInvoiceAdjustments = function(invoiceAdjustments) {
     var invoiceAdjustmentAmount = 0;
     if (invoiceAdjustments && invoiceAdjustments.length) {
         invoiceAdjustments.forEach(function (invoiceAdjustment) {
-            var amount = invoiceAdjustment.Amount;
-            if (invoiceAdjustment.Type !== "Charge") {
+            var amount = invoiceAdjustment.InvoiceAdjustment.Amount;
+            if (invoiceAdjustment.InvoiceAdjustment.Type !== "Charge") {
                 amount = -amount;
             }
             invoiceAdjustmentAmount += amount;

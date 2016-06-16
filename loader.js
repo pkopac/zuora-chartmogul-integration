@@ -42,9 +42,10 @@ Loader.prototype.getAllInvoiceItems = function() {
  * Invoice payments + invoice number + payment realization.
  */
 Loader.prototype.getAllInvoicePayments = function() {
-    return this.aqua.zoqlRequest("select "+
-        "Invoice.InvoiceNumber,"+
-        "Payment.Amount,Payment.CreatedDate,Payment.Id,Payment.PaymentNumber,Payment.Status"+
+    return this.aqua.zoqlRequest("select " +
+        "InvoicePayment.Amount," +
+        "Invoice.InvoiceNumber," +
+        "Payment.CreatedDate,Payment.Id,Payment.PaymentNumber,Payment.Status" +
         " from InvoicePayment",
 
         "all Invoice Payments"
@@ -53,9 +54,10 @@ Loader.prototype.getAllInvoicePayments = function() {
 
 Loader.prototype.getAllRefundInvoicePayments = function() {
     return this.aqua.zoqlRequest(
-        "select "+
-        "Invoice.InvoiceNumber,"+
-        "Refund.Amount,Refund.Id,Refund.RefundDate,Refund.RefundNumber,Refund.Status"+
+        "select " +
+        "RefundAmount," +
+        "Invoice.InvoiceNumber," +
+        "Refund.Amount,Refund.Id,Refund.RefundDate,Refund.RefundNumber,Refund.Status" +
         " from RefundInvoicePayment",
 
         "all Refund Invoice Payments"

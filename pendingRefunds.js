@@ -50,16 +50,16 @@ PendingRefunds.addRefundsFromStandaloneCBA = function(cbas, invoice) {
         return [cbas];
     }
     /* Same date or later and same amount => matches */
-    let found = cbas.find(cba => moment.utc(cba.CreatedDate).isSameOrAfter(invoiceDateM));
+    let found = cbas.find(cba => moment.utc(cba.CreditBalanceAdjustment.CreatedDate).isSameOrAfter(invoiceDateM));
     if (!found) {
         return [cbas];
     }
 
     logger.debug("Found extra-invoice refund %s from credit, attaching it to invoice %s.",
         found.Refund.RefundNumber, invoice.external_id);
-    let refundedAmount = Math.round(found.Amount * 100),
+    let refundedAmount = Math.round(found.CreditBalanceAdjustment.Amount * 100),
         filteredCbas = cbas.filter(cba =>
-            cba.Refund.RefundNumber !== found.Refund.RefundNumber);
+            cba.CreditBalanceAdjustment.Id !== found.CreditBalanceAdjustment.Id);
 
     // matches exactly => just add refund
     if (refundedAmount == invoiceTotal) {
@@ -106,7 +106,7 @@ PendingRefunds.splitInvoice = function(invoice, refundedAmount, invoiceTotal, cb
 /**
  * Mutates invoice (adds refund) + returns the rest to be added later.
  */
-PendingRefunds.prototype.splitAdjustment = function(invoice, refundedAmount, invoiceTotal, cba) {
+PendingRefunds.splitAdjustment = function(invoice, refundedAmount, invoiceTotal, cba) {
     logger.debug("Splitting adjustment %s: %d - %d = %d",
         cba.Refund.RefundNumber, refundedAmount, invoiceTotal, refundedAmount - invoiceTotal);
     // make new object, not to mutate original
@@ -115,8 +115,8 @@ PendingRefunds.prototype.splitAdjustment = function(invoice, refundedAmount, inv
     /* New fake ID's must be unique! */
     processNow.Refund.RefundNumber += "a";
     processNext.Refund.RefundNumber += "b";
-    processNow.Amount = invoiceTotal/100; //refund only the part that belongs to this invoice
-    processNext.Amount -= invoiceTotal/100; // try to find where to put the rest next time
+    processNow.CreditBalanceAdjustment.Amount = invoiceTotal/100; //refund only the part that belongs to this invoice
+    processNext.CreditBalanceAdjustment.Amount -= invoiceTotal/100; // try to find where to put the rest next time
     InvoiceBuilder.addPayments([processNow], invoice, "Refund");
     return processNext;
 };

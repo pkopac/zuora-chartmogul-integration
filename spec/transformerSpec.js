@@ -130,7 +130,7 @@ describe("Transformer", function(){
 
 
 
-        xit("prorated downgrade", function(){
+        it("prorated downgrade", function(){
             var loader = {},
                 importer = jasmine.createSpyObj("importer", ["insertInvoices"]);
             var tested = new Transformer(loader, importer);
@@ -138,13 +138,13 @@ describe("Transformer", function(){
             const PRORATED_CREDIT = {
                 Invoice: {
                     InvoiceNumber: "INVO-123",
-                    Amount : 0,
+                    Amount : -10,
                     PostedDate: "2012-12-07T14:53:49+0000",
                     DueDate: "2013-01-06"
                 },
                 InvoiceItem: {
                     AccountingCode: "MONTHLYFEE",
-                    ChargeAmount: 20,
+                    ChargeAmount: -20,
                     Quantity: 2,
                     ChargeName: "Users -- Proration Credit",
                     Id: "ITEM-001",
@@ -163,14 +163,14 @@ describe("Transformer", function(){
             const PRORATED_DOWNGRADE_ITEM = {
                 Invoice: {
                     InvoiceNumber: "INVO-123",
-                    Amount : 0,
+                    Amount : -10,
                     PostedDate: "2012-12-07T14:53:49+0000",
                     DueDate: "2013-01-06"
                 },
                 InvoiceItem: {
                     AccountingCode: "MONTHLYFEE",
                     ChargeAmount: 10,
-                    Quantity: 2,
+                    Quantity: 1,
                     ChargeName: "Users -- Proration",
                     Id: "ITEM-001",
                     "ServiceEndDate": "2013-03-09",
@@ -188,7 +188,27 @@ describe("Transformer", function(){
             const PRORATED_DOWNGRADE = {};
             PRORATED_DOWNGRADE[ACCOUNT1] = [PRORATED_CREDIT, PRORATED_DOWNGRADE_ITEM];
 
-            var EXPECTED_RESULTS = {};
+            var EXPECTED_RESULTS = [{
+                "external_id": "INVO-123",
+                "date": "2012-12-07T14:53:49+00:00",
+                "currency": "USD",
+                "due_date": "2013-01-06T00:00:00+00:00",
+                "line_items": [
+                    {
+                        "type": "subscription",
+                        "subscription_external_id": "SUB-001",
+                        "plan_uuid": 1,
+                        "service_period_start": "2013-02-01T00:00:00+00:00",
+                        "service_period_end": "2013-03-09T00:00:00+00:00",
+                        "amount_in_cents": -1000,
+                        "prorated": true,
+                        "quantity": -1,
+                        "discount_amount_in_cents": 0,
+                        "external_id": "ITEM-001"
+                    }
+                ],
+                "transactions": []
+            }];
 
             tested.makeInvoices(
                 PLANS_BY_ID, CUSTOMERS_BY_ID, PRORATED_DOWNGRADE,
