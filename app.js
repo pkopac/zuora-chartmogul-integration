@@ -9,9 +9,8 @@ Q.longStackSupport = true; //DEBUG!
 
 var Loader = require("./loader.js").Loader;
 var Transformer = require("./transformer.js").Transformer;
-
-var logger = require("log4js").getLogger("app");
-logger.setLevel("TRACE");
+var log4js = require("log4js");
+var logger = log4js.getLogger("app");
 
 const DEFAULT_CONFIG_PATH = "/etc/zuora-chartmogul/config.json";
 
@@ -119,6 +118,9 @@ function runTransformation(configuration, dry, update) {
     processArgs();
     try {
         var configuration = JSON.parse(fs.readFileSync(argv.config, "utf8"));
+        if(configuration.log4js) {
+            log4js.configure(configuration.log4js);
+        }
     } catch (error) {
         throw(error, "Couldn't load configuration file!");
     }

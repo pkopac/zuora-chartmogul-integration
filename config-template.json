@@ -14,5 +14,14 @@
             "exclude": [""],
             "include": [""]
          }
+    },
+    "log4js": {
+        "levels": {
+            "[all]": "DEBUG"
+        },
+        "appenders":
+            [
+                {"type": "console"}
+            ]
     }
 }

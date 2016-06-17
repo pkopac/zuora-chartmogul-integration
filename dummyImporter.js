@@ -18,6 +18,11 @@ Importer.prototype.configure = function () {
     logger.debug("Configuring dummy client...");
 };
 
+Importer.prototype.getDataSource = function(name) {
+    logger.trace("getDataSource");
+    return "fake_datasource_uuid_" + name;
+};
+
 Importer.prototype.dropAndCreateDataSource = function(name) {
     logger.trace("dropAndCreateDataSource");
     return "fake_datasource_uuid_" + name;
@@ -41,7 +46,11 @@ Importer.prototype.insertPlans = function () {
                   this._insertPlan(this.dataSource, Importer.PLANS.PRO_QUARTERLY, 3, "month")]);
 };
 
-Importer.prototype.insertCustomer = function(accountId) {
+Importer.prototype.insertCustomers = function(array) {
+    return Q.all(array.map(i => this._insertCustomer(i[0])));
+};
+
+Importer.prototype._insertCustomer = function(accountId) {
     return Q({uuid: "fake_customer_uuid_" + accountId, external_id: accountId});
 };
 
