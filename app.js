@@ -24,20 +24,22 @@ function printHelpAndExit() {
     console.error("  -o <file>, --output <file>    Path to dump data (use with -q).");
     console.error("  -q <query>, --query <query>   Run query (use with -o).");
     console.error("  -d, --dry                     Dry run doesn't interact with Chartmogul.");
+    console.error("  -u, --update                  Ignore 'existing' errors while importing to Chartmogul.");
     process.exit(1);
 }
 
 function processArgs() {
     argv = minimist(process.argv.slice(2),
     { string: ["config", "query", "output"],
-      boolean: ["interactive", "help", "dry"],
+      boolean: ["interactive", "help", "dry", "update"],
       alias: {
           config: "c",
           interactive: "i",
           help: "h",
           query: "q",
           output: "o",
-          dry: "d"
+          dry: "d",
+          update: "u"
       },
       "default": {
           config: DEFAULT_CONFIG_PATH,
@@ -85,7 +87,7 @@ function runQuery(configuration, query, outputFile) {
         });
 }
 
-function runTransformation(configuration, dry) {
+function runTransformation(configuration, dry, update) {
     var loader = new Loader();
     loader.configure(configuration.zuora);
 
@@ -97,12 +99,16 @@ function runTransformation(configuration, dry) {
         Importer = require("./importer.js").Importer;
     }
     var importer = new Importer();
+    if (update) {
+        configuration.chartmogul.update = true;
+    }
     importer.configure(configuration.chartmogul);
 
     var transformer = new Transformer(loader, importer);
     transformer.configure(configuration.transformer);
 
     transformer.run()
+        .then(() => logger.info("Processing finished successfully."))
         .catch(err => {
             logger.fatal(err);
             process.exit(1);
@@ -121,6 +127,6 @@ function runTransformation(configuration, dry) {
     } else if (argv.query) {
         runQuery(configuration, argv.query, argv.output);
     } else {
-        runTransformation(configuration, argv.dry);
+        runTransformation(configuration, argv.dry, argv.update);
     }
 })();

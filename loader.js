@@ -93,7 +93,7 @@ Loader.prototype.getAllInvoiceAdjustments = function() {
 Loader.prototype.getAllCreditBalanceAdjustments = function() {
     return this.aqua.zoqlRequest(
         "select "+
-        "AccountingCode,Amount,CreatedDate,ReasonCode,SourceTransactionType,Status,Type,"+
+        "AccountingCode,Amount,CreatedDate,Id,ReasonCode,SourceTransactionType,Status,Type,"+
         "Account.SamepageId__c,Account.AccountNumber,"+
         "Invoice.InvoiceNumber,"+
         "Payment.Amount,Payment.Id,Payment.PaymentNumber,"+

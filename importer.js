@@ -22,7 +22,7 @@ var Importer = function () {
     this.dataSource = null; // must be set later
 };
 
-const CHARTMOGUL_DELAY = 5000;
+const CHARTMOGUL_DELAY = 10000;
 
 Importer.PLANS = {
     PRO_ANNUALLY: "Pro Annually",
@@ -32,7 +32,16 @@ Importer.PLANS = {
 
 Importer.prototype.configure = function (json) {
     logger.debug("Configuring chartmogul client...");
+    this.skip = json.update;
     cm.config(json);
+};
+
+Importer.prototype.getDataSource = function(name) {
+    if (this.skip) {
+        return this.getOrCreateDataSource(name);
+    } else {
+        return this.dropAndCreateDataSource(name);
+    }
 };
 
 //TODO: exponential backoff
@@ -115,13 +124,60 @@ Importer.prototype._insertPlan = function(dataSourceUuid, plan, amout, period) {
     return cm.import.importPlan(dataSourceUuid, plan, amout, period, plan);
 };
 
+/**
+ * Handles allSettled result - failover for existing customers/plans
+ */
+function listHandler(error, fc, skip) {
+    return (results) => {
+        var rejectedItems = results
+                              .filter(item => item.state === "rejected")
+                              .map(p => p.reason);
+        var existsErrors = rejectedItems.filter(item => item.name && item.name === error);
+        var otherErrors = rejectedItems.filter(item => !item.name || item.name !== error);
+
+        // some unexpected problems
+        if (otherErrors.length) {
+            if (!skip) {
+                otherErrors = otherErrors.concat(existsErrors);
+            }
+            throw otherErrors;
+        }
+
+        // some customers exists already
+        if (existsErrors.length) {
+            if (skip) {
+                return fc();
+            } else {
+                throw existsErrors;
+            }
+        }
+
+        // no problems, all imported; promises -> values
+        return results.map(p => p.value);
+    };
+}
+
 Importer.prototype.insertPlans = function () {
-    return Q.all([this._insertPlan(this.dataSource, Importer.PLANS.PRO_ANNUALLY, 1, "year"),
-                  this._insertPlan(this.dataSource, Importer.PLANS.PRO_MONTHLY, 1, "month"),
-                  this._insertPlan(this.dataSource, Importer.PLANS.PRO_QUARTERLY, 3, "month")]);
+    return Q.allSettled(
+        [this._insertPlan(this.dataSource, Importer.PLANS.PRO_ANNUALLY, 1, "year"),
+          this._insertPlan(this.dataSource, Importer.PLANS.PRO_MONTHLY, 1, "month"),
+          this._insertPlan(this.dataSource, Importer.PLANS.PRO_QUARTERLY, 3, "month")])
+      .then(listHandler(
+          cm.import.PLAN_EXISTS_ERROR,
+          cm.import.listAllPlans.bind(null, this.dataSource),
+          this.skip));
 };
 
-Importer.prototype.insertCustomer = function(accountId, info) {
+Importer.prototype.insertCustomers = function(customers) {
+    return Q.allSettled(
+        customers.map(info => this._insertCustomer(info[0], info[1])))
+      .then(listHandler(
+          cm.import.CUSTOMER_EXISTS_ERROR,
+          cm.import.listAllCustomers.bind(null, this.dataSource),
+          this.skip));
+};
+
+Importer.prototype._insertCustomer = function(accountId, info) {
     return cm.import.importCustomer(this.dataSource,
             accountId,
             info.Account.Name,
@@ -138,7 +194,14 @@ Importer.prototype.insertInvoices = function(customerUuid, invoicesToImport) {
         return;
     }
     logger.debug("Saving invoices", invoicesToImport.map(invo => invo.external_id));
-    return cm.import.importInvoices(customerUuid, invoicesToImport);
+    var self = this;
+    return cm.import.importInvoices(customerUuid, invoicesToImport)
+        .catch((err) => {
+            if (self.skip && err.statusCode === 422) {
+                return;
+            } else {
+                throw err;
+            }});
 };
 
 exports.Invoice = cm.import.Invoice;

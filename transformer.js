@@ -38,7 +38,7 @@ Transformer.prototype.reloadAll = function () {
         this.loader.getAllInvoiceItemAdjustments(),
         this.loader.getAllInvoiceAdjustments(),
         this.loader.getAllCreditBalanceAdjustments(),
-        this.importer.dropAndCreateDataSource(this.dataSource)
+        this.importer.getDataSource(this.dataSource)
     ]);
 };
 
@@ -189,10 +189,8 @@ Transformer.prototype.filterAndGroupItems = function (invoiceItems) {
  */
 Transformer.prototype.importCustomersFromItems = function (itemsByAccountId) {
     var self = this;
-    return Q.all(Object.keys(itemsByAccountId)
-        .map(accountId =>
-            self.importer.insertCustomer(accountId, itemsByAccountId[accountId][0]))
-        );
+    return self.importer.insertCustomers(Object.keys(itemsByAccountId)
+        .map(accountId => [accountId, itemsByAccountId[accountId][0]]));
 };
 
 /* Helper functions */

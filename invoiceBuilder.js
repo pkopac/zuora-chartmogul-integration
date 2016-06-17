@@ -149,6 +149,11 @@ InvoiceBuilder.removePartialRefunds = function(invoice, totalPayments, totalRefu
         return;
     }
 
+    if (invoiceTotal === 0 && totalPayments - totalRefunds === 0) {
+        logger.warn("Invoice was adjusted to 0 and refunded.");
+        return;
+    }
+
     throw new VError("Unexpected payment case: invoiceTotal %d, totalPayments %d, totalRefunds %d, totalCreditAdjusted %d, clearPayment %d",
         invoiceTotal, totalPayments, totalRefunds, totalCreditAdjusted, clearPayment);
 };
@@ -173,9 +178,9 @@ InvoiceBuilder.testCreditAdjustmentCorrect = function(invoice, creditAdjs, total
             logger.warn("Invoice has both payments/refunds and credit adjustment! Cashflow incorrect.");
             return creditAdjusted;
         }
-        if (creditAdjusted !== invoiceTotal) {
-            logger.debug("creditAdjusted !== invoiceTotal: %d !== %d", creditAdjusted, invoiceTotal);
-            throw new VError("Credit adjusted, but not the same as invoice amount!");
+        if (creditAdjusted !== invoiceTotal) { // outstanding balance = yet unpaid 
+            logger.warn("Credit adjusted, but not the same as invoice amount! " +
+                "creditAdjusted !== invoiceTotal: %d !== %d", creditAdjusted, invoiceTotal);
         } else if(successfulTransactions) {
             throw new VError("Partially refunded/paid and credit adjusted!");
         }
