@@ -1,8 +1,18 @@
 # zuora-chartmogul-integration
-Imports invoices from Zuora to ChartMogul. Warning: is dependent on custom field in Zuora (SamepageId).
+Imports invoices from Zuora to ChartMogul. Tries to overcome differences in data models.
+
+### Warnings
+**Work in progress.**
+
+The transformation is dependent on custom field in Zuora (SamepageId), custom plans and custom item names.
+If you want to use it, you would need to extract these into a configurable file or rewrite the hard-coded constants.
+
+The data models are very different, for example right now Chartmogul doesn't support partial refund of invoices, so that if ignored -> the cashflow is not exact.
 
 ### Interactive ZOQL Console
 Contains simplistic interactive mode that allows you to test SELECTs and polls for results that are then parsed from CSV into JSON objects and nicely printed.
+
+You can also just run queries and save results into file.
 
 ### Motivation
 Zuora analytics not enough for SaaS business, but ChartMogul has no Zuora integration yet.
