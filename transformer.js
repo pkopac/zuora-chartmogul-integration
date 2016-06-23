@@ -91,7 +91,8 @@ Transformer.prototype.makeInvoices = function(
     paymentsByInvoice, refundsByInvoice, itemAdjsByInvoice,
     invoiceAdjsByInvoice, creditAdjsByInvoice, creditAdjsNoInvoiceByAccount) {
 
-    var self = this;
+    var self = this,
+        counter = 0;
 
     return Q.all(Object.keys(itemsByAccount)
         .map(function (accountId) {
@@ -126,7 +127,6 @@ Transformer.prototype.makeInvoices = function(
                         throw new VError(error, "Failed to process invoice " + invoiceNumber);
                     }
                 })
-                .filter(Boolean) // remove null and empty invoices
                 .filter(invoice => invoice.line_items.length);
 
             logger.trace("Invoices before hanging refunds", invoicesToImport.map(i => i.external_id));
@@ -139,7 +139,19 @@ Transformer.prototype.makeInvoices = function(
             } catch(err) {
                 throw new VError(err, "Failed to add extra-invoice refunds to account " + accountId);
             }
-            return self.importer.insertInvoices(customerUuid, invoicesToImport);
+
+            invoicesToImport = invoicesToImport.filter(invoice => invoice.line_items.every(
+                    // any invoice containing deleted subscriptions must be removed
+                    line_item => line_item.subscription_external_id
+                ))
+                .filter(Boolean); // remove null and empty invoices;
+
+            return self.importer.insertInvoices(customerUuid, invoicesToImport)
+                .tap(() => {
+                    if (!(++counter % 100)) {
+                        logger.info("Processed %d customers.", counter);
+                    }
+                });
 
         }));
 };

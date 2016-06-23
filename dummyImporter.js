@@ -56,7 +56,7 @@ Importer.prototype._insertCustomer = function(accountId) {
 
 Importer.prototype.insertInvoices = function(customerUuid, invoicesToImport) {
     if (!invoicesToImport.length) {
-        return;
+        return Q();
     }
     logger.debug("Saving invoices", invoicesToImport.map(invo => invo.external_id));
     return Q.all(invoicesToImport.map(

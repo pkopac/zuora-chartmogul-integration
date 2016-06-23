@@ -191,14 +191,14 @@ Importer.prototype._insertCustomer = function(accountId, info) {
 
 Importer.prototype.insertInvoices = function(customerUuid, invoicesToImport) {
     if (!invoicesToImport.length) {
-        return;
+        return Q();
     }
     logger.debug("Saving invoices", invoicesToImport.map(invo => invo.external_id));
     var self = this;
     return cm.import.importInvoices(customerUuid, invoicesToImport)
         .catch((err) => {
             if (self.skip && err.statusCode === 422) {
-                return;
+                return Q();
             } else {
                 throw err;
             }});
