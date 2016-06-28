@@ -1,6 +1,6 @@
 "use strict";
 
-var logger = require("log4js").getLogger("ItemsBuilder"),
+var logger = require("log4js").getLogger("itemsBuilder"),
     VError = require("verror"),
     // _ = require("lodash"),
     moment = require("moment"),

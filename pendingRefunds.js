@@ -1,6 +1,6 @@
 "use strict";
 
-var logger = require("log4js").getLogger(),
+var logger = require("log4js").getLogger("pendingRefunds"),
     VError = require("verror"),
     _ = require("lodash"),
     moment = require("moment"),
@@ -12,8 +12,8 @@ var PendingRefunds = function() {
 };
 
 PendingRefunds.addHangingRefunds = function(pendingCBARefunds, invoicesToImport) {
-    // sort without mutating original
-    var invoices = _.sortBy(invoicesToImport, "external_id");
+    // sort without mutating original, iterate in reverse order
+    var invoices = _.sortBy(invoicesToImport, "external_id").reverse();
     for (var i = 0; i < invoices.length; i++) {
         let invoice = invoices[i];
         let result = PendingRefunds.addRefundsFromStandaloneCBA(pendingCBARefunds, invoice);

@@ -196,7 +196,7 @@ InvoiceBuilder.addInvoiceItems = function(invoiceItems, invoice, adjustments, in
         adjustmentMap,
         planUuids);
 
-    logger.debug(adjustmentMap);
+    logger.trace("adjustmentMap", adjustmentMap);
     InvoiceBuilder.testTotalOfInvoiceEqualsTotalOfLineItems( // runtime sanity check
         invoiceItems[0], processedLineItems, itemAdjustmentAmountTotal, invoiceAdjustmentAmount);
 
@@ -295,7 +295,7 @@ InvoiceBuilder.itemsForInvoice = function(invoiceItems,
         } else if (name in ItemsBuilder.DISCOUNTS) {
             //do nothing
         } else {
-            logger.debug(item);
+            logger.error(item);
             throw new VError("Unknown item type: " + name);
         }
     });
