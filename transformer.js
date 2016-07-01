@@ -146,6 +146,28 @@ Transformer.prototype.makeInvoices = function(
                 ))
                 .filter(Boolean); // remove null and empty invoices;
 
+            /* Various checks */
+
+
+            //HACK: we must do something else, CM must accept 0 change in quantity or the invoices must be split
+            invoicesToImport // this currently holds true with CM
+                //.filter(invoice => invoice.line_items.some(line_item => !line_item.quantity))
+                .forEach(invoice => {
+                    invoice.line_items
+                        .filter(line_item => !line_item.quantity)
+                        .forEach(line_item => line_item.quantity++);
+
+                    // logger.error(invoice);
+                    // throw new VError("Invoice can't have 0 quantity!");
+                });
+            invoicesToImport
+                .filter(invoice => invoice.line_items.some(line_item => !line_item.prorated && line_item.amount_in_cents < 0))
+                .forEach(invoice => {
+                    logger.error(invoice);
+                    throw new VError("Invoice can't be unprorated with negative amount!");
+                });
+
+
             return self.importer.insertInvoices(customerUuid, invoicesToImport)
                 .tap(() => {
                     if (!(++counter % 100)) {

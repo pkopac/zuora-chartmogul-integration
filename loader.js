@@ -26,6 +26,7 @@ Loader.prototype.getAllInvoiceItems = function() {
         "select "+
         "AccountingCode,AppliedToInvoiceItemId,ChargeAmount,ChargeName,Id,"+
         "Quantity,ServiceEndDate,ServiceStartDate,SubscriptionId,TaxAmount,UOM,UnitPrice,"+
+        "Amendment.Type,"+
         "Account.Currency,Account.Name,Account.AccountNumber,Account.SamepageId__c,Account.Status,"+
         "BillToContact.City,BillToContact.Country,BillToContact.PostalCode,BillToContact.State,"+
         "Invoice.AdjustmentAmount,Invoice.Amount,Invoice.Balance,Invoice.DueDate,"+

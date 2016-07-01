@@ -71,6 +71,15 @@ InvoiceBuilder.buildInvoice = function(invoiceNumber, invoiceItems, postedDate,
         //TODO: there are multiple cases when this can happen - can be an error, a late discount done wrong etc.
         InvoiceBuilder.removePartialRefunds(invoice, totalPayments, totalRefunds, totalCreditAdjusted);
 
+        /* 0 amount, 0 quantity doesn't change MRR or anything, so no point in keeping that.
+         * Downgrade must be prorated with negative amount or unprorated with lower (not 0) amount.
+         * Cancel must be "cancelled_at" date. */
+        invoice.line_items = invoice.line_items.filter(line_item =>
+             line_item.discount_amount_in_cents ||
+             line_item.amount_in_cents ||
+             line_item.quantity
+        );
+
         return invoice;
     } catch (error) {
         logger.debug(error.stack);
@@ -261,37 +270,43 @@ InvoiceBuilder.cancelLongDueInvoices = function (firstItem, positiveItems) {
     }
 };
 
-//TODO: simplify filtering
 InvoiceBuilder.itemsForInvoice = function(invoiceItems,
     invoiceAdjustmentAmount,
     discountMap, adjustmentMap, planUuids) {
 
-    var users = [],
-        storage = [],
-        personal = [],
+    var charged = [],
+        usersProration = [],
         proratedUsersCredit = [],
-        proratedStorageCredit = [],
-        proratedUsers = [],
-        proratedStorage = [];
+        proratedStorageCredit = [];
 
     invoiceItems
     .filter(item => item.InvoiceItem.ChargeAmount) // ignore 0 charges
     .forEach(function(item) {
         var name = item.InvoiceItem.ChargeName;
-        if (name in ItemsBuilder.USERS_ITEMS) {
-            users.push(item);
-        } else if (name in ItemsBuilder.STORAGE_ITEMS) {
-            storage.push(item);
+        if (name in ItemsBuilder.USERS_ITEMS || name in ItemsBuilder.PERSONAL) {
+            // because negative charges are really wrongly-invoiced credits
+            // this will help detect invoices that aren't correctly marked as prorated
+            if (item.InvoiceItem.ChargeAmount < 0) {
+                proratedUsersCredit.push(item);
+            } else {
+                charged.push(item);
+            }
+        } else if (name in ItemsBuilder.USERS_PRORATION) {
+            if (item.InvoiceItem.ChargeAmount < 0) {
+                proratedUsersCredit.push(item);
+            } else {
+                usersProration.push(item);
+            }
+        } else if (name in ItemsBuilder.STORAGE_ITEMS || name in ItemsBuilder.STORAGE_PRORATION) {
+            if (item.InvoiceItem.ChargeAmount < 0) {
+                proratedStorageCredit.push(item);
+            } else {
+                charged.push(item);
+            }
         } else if (name in ItemsBuilder.USER_PRORATION_CREDIT) {
             proratedUsersCredit.push(item);
-        } else if (name in ItemsBuilder.USERS_PRORATION) {
-            proratedUsers.push(item);
         } else if (name in ItemsBuilder.STORAGE_PRORATION_CREDIT) {
             proratedStorageCredit.push(item);
-        } else if (name in ItemsBuilder.STORAGE_PRORATION) {
-            proratedStorage.push(item);
-        } else if (name in ItemsBuilder.PERSONAL) {
-            personal.push(item);
         } else if (name in ItemsBuilder.DISCOUNTS) {
             //do nothing
         } else {
@@ -300,8 +315,9 @@ InvoiceBuilder.itemsForInvoice = function(invoiceItems,
         }
     });
 
+    // IMPORTANT: prorated users processed first to prioritize credit attachment 
     return ItemsBuilder.processItems(
-        proratedUsers.concat(proratedStorage, users, personal, storage),
+        usersProration.concat(charged),
         proratedUsersCredit, proratedStorageCredit,
         {discountMap,
             adjustmentMap,

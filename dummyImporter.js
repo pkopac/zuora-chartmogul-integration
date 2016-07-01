@@ -18,9 +18,17 @@ Importer.prototype.configure = function () {
     logger.debug("Configuring dummy client...");
 };
 
+var ignoreDirExists = err => {
+    if (err.errno !== -17) {
+        throw err;
+    }
+};
+
 Importer.prototype.getDataSource = function(name) {
     logger.trace("getDataSource");
-    return "fake_datasource_uuid_" + name;
+    return Q.all([Q.ninvoke(fs, "mkdir", "dump").catch(ignoreDirExists),
+                  Q.ninvoke(fs, "mkdir", "dump/customers").catch(ignoreDirExists)])
+                  .then(() => "fake_datasource_uuid_" + name);
 };
 
 Importer.prototype.dropAndCreateDataSource = function(name) {
@@ -47,11 +55,17 @@ Importer.prototype.insertPlans = function () {
 };
 
 Importer.prototype.insertCustomers = function(array) {
-    return Q.all(array.map(i => this._insertCustomer(i[0])));
+    return Q.all(array.map(i => this._insertCustomer(i[0], i[1])));
 };
 
-Importer.prototype._insertCustomer = function(accountId) {
-    return Q({uuid: "fake_customer_uuid_" + accountId, external_id: accountId});
+Importer.prototype._insertCustomer = function(accountId, info) {
+    return Q.ninvoke(fs, "writeFile",
+                        "./dump/customers/" + accountId + ".json",
+                        JSON.stringify(info, null, 2))
+                        .then(() => {
+                            return {uuid: "fake_customer_uuid_" + accountId,
+                                     external_id: accountId};
+                        });
 };
 
 Importer.prototype.insertInvoices = function(customerUuid, invoicesToImport) {

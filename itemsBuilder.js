@@ -10,7 +10,6 @@ require("moment-range");
 
 var ItemsBuilder = function() {};
 
-
 ItemsBuilder.RATE_TO_PLANS = {
     ANNUALFEE: PLANS.PRO_ANNUALLY,
     MONTHLYFEE: PLANS.PRO_MONTHLY,
@@ -66,9 +65,11 @@ ItemsBuilder.processItems = function(
 
     var discountMap = context.discountMap,
         adjustmentMap = context.adjustmentMap,
-        planUuids = context.planUuids;
+        planUuids = context.planUuids,
+        invoiceAmendmentTypeMap = {};
 
     logger.trace(items.map(i=>i.InvoiceItem.ChargeName));
+
     var result = items
         // Cannot - because of downgrades to free
         //.filter(item => item.InvoiceItem.Quantity !== 0 && item.InvoiceItem.UOM !== 0)
@@ -127,7 +128,12 @@ ItemsBuilder.processItems = function(
 
                 amount += (credit.InvoiceItem.ChargeAmount + discountOnProration);
                 // this can result in negative quantity => prorated downgrade
-                quantity -= credit.InvoiceItem.Quantity;
+                if (credit.InvoiceItem.ChargeAmount > 0) {
+                    // for some wicked reason, there are charged credits, see INV00005475
+                    quantity += credit.InvoiceItem.Quantity;
+                } else {
+                    quantity -= credit.InvoiceItem.Quantity;
+                }
 
                 credits.splice(index, 1);
                 index--;
@@ -140,26 +146,26 @@ ItemsBuilder.processItems = function(
             }
 
             /* Deal with invoice adjustments */
-
-            if (context.invoiceAdjustmentAmount < 0) {
-                discount -= amount;
-            }
-
-            // perfect match
-            if (amount + context.invoiceAdjustmentAmount === 0) {
-                context.invoiceAdjustmentAmount = 0;
-                amount = 0;
-            }
-
-            // partial match
-            if (Math.sign(amount) !== Math.sign(context.invoiceAdjustmentAmount)) {
-                if (Math.abs(amount) > Math.abs(context.invoiceAdjustmentAmount)) {
-                    amount += context.invoiceAdjustmentAmount;
-                    context.invoiceAdjustmentAmount = 0;
-                } else {
-                    context.invoiceAdjustmentAmount += amount;
-                    amount = 0;
+            if (context.invoiceAdjustmentAmount) {
+                if (context.invoiceAdjustmentAmount < 0) {
+                    discount -= amount;
                 }
+
+                // perfect match
+                if (amount + context.invoiceAdjustmentAmount === 0) {
+                    context.invoiceAdjustmentAmount = 0;
+                    amount = 0;
+                // partial match
+                } else if (Math.sign(amount) !== Math.sign(context.invoiceAdjustmentAmount)) {
+                    if (Math.abs(amount) > Math.abs(context.invoiceAdjustmentAmount)) {
+                        amount += context.invoiceAdjustmentAmount;
+                        context.invoiceAdjustmentAmount = 0;
+                    } else {
+                        context.invoiceAdjustmentAmount += amount;
+                        amount = 0;
+                    }
+                }
+                // if signs match, skip this item, it probably should go to another one
             }
 
             /* chartmogul number format = in cents, discount positive number */
@@ -169,7 +175,7 @@ ItemsBuilder.processItems = function(
             // if (!amount) {
             //     return;
             // }
-
+            invoiceAmendmentTypeMap[item.Amendment.Type] = true;
             // compile line item for chartmogul
             return {
                 type: "subscription",
@@ -194,6 +200,17 @@ ItemsBuilder.processItems = function(
     result = result.concat(ItemsBuilder.handleUnmatchedCredits(
                             proratedUsersCredit, proratedStorageCredit, context)
                         );
+
+    /* If invoice only removed relevant products, it means it probably
+     * downgraded the customer to Free. */
+    var amendmentTypes = Object.keys(invoiceAmendmentTypeMap);
+    if (amendmentTypes.length === 1 && amendmentTypes[0] === "RemoveProduct") {
+        var minStart = moment.utc(result.reduce(
+            (min, i) => Math.min(min, moment.utc(i.service_period_start)),
+            moment.utc()
+        ));
+        result.forEach(i => i.cancelled_at = minStart);
+    }
 
     return result;
 };

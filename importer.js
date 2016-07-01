@@ -4,6 +4,8 @@ var logger = require("log4js").getLogger("importer");
 var cm = require("chartmoguljs"),
     Q = require("q");
 
+//TODO: HTTP 422 means "Unprocessable entity". It must be checked therefore, whether the error is duplicate index key, or something else!
+
 /* Private helper functions */
 //.catch(ignore(cm.import.PLAN_EXISTS_ERROR));
 // function ignore(exceptionNames) {

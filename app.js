@@ -109,8 +109,13 @@ function runTransformation(configuration, dry, update) {
     transformer.run()
         .then(() => logger.info("Processing finished successfully."))
         .catch(err => {
-            logger.fatal(err);
-            process.exit(1);
+            /* All unhandled errors end up here -.o */
+            if (err.error && err.error.invoices) {
+                logger.fatal(err.error.invoices);
+            } else {
+                logger.fatal(err);
+            }
+            process.exit(err.statusCode || 1);
         });
 }
 
