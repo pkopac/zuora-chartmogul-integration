@@ -2,6 +2,7 @@
 
 var logger = require("log4js").getLogger("importer");
 var cm = require("chartmoguljs"),
+    cd = require("country-data"),
     Q = require("q");
 
 //TODO: HTTP 422 means "Unprocessable entity". It must be checked therefore, whether the error is duplicate index key, or something else!
@@ -179,13 +180,19 @@ Importer.prototype.insertCustomers = function(customers) {
           this.skip));
 };
 
+Importer.prototype._countryCode = function(longIsoCountry) {
+    var data = cd.lookup.countries({name: longIsoCountry})[0];
+    return data ? data.alpha2 : undefined;
+};
+
 Importer.prototype._insertCustomer = function(accountId, info) {
+
     return cm.import.importCustomer(this.dataSource,
             accountId,
             info.Account.Name,
             undefined,
             undefined,
-            info.BillToContact.Country || undefined,
+            this._countryCode(info.BillToContact.Country) || undefined,
             String(info.BillToContact.State) || undefined,
             info.BillToContact.City || undefined,
             String(info.BillToContact.PostalCode));
