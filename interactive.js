@@ -33,9 +33,7 @@ InteractiveConsole.prototype.run = function () {
 };
 
 InteractiveConsole.prototype.show = function (jsonArray) {
-    for (var i = 0; i < Math.min(jsonArray.length, 10); i++) {
-        console.log(JSON.stringify(jsonArray[i], null, 2));
-    }
+    console.log(JSON.stringify(jsonArray.slice(0, 10), null, 2));
     if (jsonArray.length === 0) {
         console.log("Query returned zero results.");
     } else if (jsonArray.length > 10) {

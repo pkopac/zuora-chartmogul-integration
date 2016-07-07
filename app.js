@@ -67,23 +67,18 @@ function runQuery(configuration, query, outputFile) {
     aqua.configure(configuration.zuora);
     function writeFile(jsonArray) {
         Q.ninvoke(fs, "open", outputFile, "w")
-            .then(function(fd) {
-                for (var i = 0; i < jsonArray.length; i++) {
-                    fs.writeSync(fd, JSON.stringify(jsonArray[i], null, 2) + "\n");
-                }
-            });
+            .then(fd => fs.writeSync(fd, JSON.stringify(jsonArray, null, 2)));
     }
     return aqua.zoqlRequest(query, "Batch")
         .then(function(jsonArray) {
             if (outputFile) {
-                writeFile(jsonArray);
+                return writeFile(jsonArray);
             } else {
-                for (var i = 0; i < jsonArray.length; i++) {
-                    console.log(JSON.stringify(jsonArray[i], null, 2));
-                }
+                console.log(JSON.stringify(jsonArray, null, 2));
             }
 
-        });
+        })
+        .catch(err => logger.fatal(err));
 }
 
 function runTransformation(configuration, dry, update) {
