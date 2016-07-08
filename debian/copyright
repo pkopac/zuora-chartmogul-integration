@@ -1,0 +1,6 @@
+Format: http://dep.debian.net/deps/dep5
+Source: https://www.samepage.io
+
+Files: *
+Copyright: Copyright 2016 Samepage s.r.o. <info@samepage.io>
+License: GNU/GPLv3

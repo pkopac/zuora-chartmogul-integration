@@ -1,7 +1,7 @@
 {
     "name": "zuora-chartmogul-integration",
     "description": "Custom integration of Zuora invoice data for Chartmogul.",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "license": "GPL-3.0",
     "keywords": [
         "chartmogul",

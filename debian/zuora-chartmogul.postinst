@@ -1,0 +1,7 @@
+chmod 755 /usr/bin/zuora-chartmogul
+
+(
+cd /usr/share/zuora-chartmogul
+
+npm install
+)

@@ -1,0 +1,15 @@
+Source: zuora-chartmogul
+Section: non-free/net
+Priority: extra
+Maintainer: Petr Kopac <pkopac@samepage.io>
+Build-Depends: debhelper (>= 8.0.0),
+  config-package-dev (>= 5.0~)
+Standards-Version: 3.9.3
+
+Package: zuora-chartmogul
+Architecture: any
+Depends: ${misc:Depends},
+  nodejs (>= 5.12.0)
+Provides: ${diverted-files}
+Conflicts: ${diverted-files}
+Description: Imports data from Zuora into ChartMogul.

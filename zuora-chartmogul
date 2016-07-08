@@ -1,0 +1,4 @@
+#!/bin/bash
+
+cd /usr/share/zuora-chartmogul/
+node app.js "$@"

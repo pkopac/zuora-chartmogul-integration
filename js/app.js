@@ -54,7 +54,7 @@ function processArgs() {
 }
 
 function runInteractive(configuration) {
-    var InteractiveConsole = require("./interactive.js").InteractiveConsole;
+    var InteractiveConsole = require("./extra/interactive.js").InteractiveConsole;
     var ZuoraAqua = require("./zuora.js").ZuoraAqua;
     var aqua = new ZuoraAqua();
     aqua.configure(configuration.zuora);
@@ -87,7 +87,7 @@ function runTransformation(configuration, dry, update) {
 
     var Importer;
     if (dry) {
-        Importer = require("./dummyImporter.js").Importer;
+        Importer = require("./extra/dummyImporter.js").Importer;
 
     } else {
         Importer = require("./importer.js").Importer;
