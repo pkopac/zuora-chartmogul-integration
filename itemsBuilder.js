@@ -113,8 +113,10 @@ ItemsBuilder.processItems = function(
                     credit.InvoiceItem.ServiceEndDate = moment.utc(end).add(1, "day").toDate().getTime();
                 }
 
-                if (credit.Subscription.Name !== item.Subscription.Name ||
-                    !ItemsBuilder.serviceIntersection(credit, item)) {
+                if (credit.Subscription.Name !== item.Subscription.Name || // different subscription
+                    credit.InvoiceItem.Quantity === item.InvoiceItem.Quantity || // would result in 0 change
+                    !ItemsBuilder.serviceIntersection(credit, item) || // non-intersecting
+                    credit.InvoiceItem.AccountingCode !== item.InvoiceItem.AccountingCode) { // change of plan
                     index--;
                     continue;
                 }
