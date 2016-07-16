@@ -68,7 +68,9 @@ PendingRefunds.addRefundsFromStandaloneCBA = function(cbas, invoice) {
 
     // split invoice, because chartMogul doesn't support partial refund
     } else if (refundedAmount < invoiceTotal) {
-        return [filteredCbas, PendingRefunds.splitInvoice(invoice, refundedAmount, invoiceTotal, found)];
+        var newInvoice = PendingRefunds.splitInvoice(invoice, refundedAmount);
+        InvoiceBuilder.addPayments([found], newInvoice, "Refund");
+        return [filteredCbas, newInvoice];
      // split adjustment, because it is more than there's on the invoice
     } else {
         filteredCbas.push(PendingRefunds.splitAdjustment(invoice, refundedAmount, invoiceTotal, found));
@@ -80,26 +82,36 @@ PendingRefunds.addRefundsFromStandaloneCBA = function(cbas, invoice) {
  * Splits invoice in two - the new one is refunded.
  * Mutates the invoice (deducts the refunded part).
  * TODO: how to deal with quantity?
+ * @param refundedAmount: positive amount_in_cents
  * @returns the new invoice.
  */
-PendingRefunds.splitInvoice = function(invoice, refundedAmount, invoiceTotal, cba) {
-    logger.debug("Splitting invoice %s: paid %d - refunded %d = rest %d",
-        invoice.external_id, invoiceTotal, refundedAmount, invoiceTotal - refundedAmount);
+PendingRefunds.splitInvoice = function(invoice, refundedAmount, date) {
+    logger.debug("Splitting invoice %s: refunded %d", invoice.external_id, refundedAmount);
 
-    if (invoice.line_items.length != 1) {
-        logger.debug(invoice.line_items);
-        throw new Error("Not yet implemented: multiple items in invoice " + invoice.external_id + " to be splitted!");
-    }
-
+    /* Create new invoice for the refunded part */
     let newInvoice = new Invoice(JSON.parse(JSON.stringify(invoice)));
 
-    invoice.line_items[0].amount_in_cents -= refundedAmount;
-    newInvoice.line_items[0].amount_in_cents = refundedAmount;
+    /* Because removing shouldn't be duplicated. */
+    newInvoice.line_items = newInvoice.line_items.filter(item => item.__amendmentType !== "RemoveProduct");
+
+    if (newInvoice.line_items.length != 1) {
+        logger.debug(invoice.line_items);
+        throw new VError("Not yet implemented: multiple items in invoice " + invoice.external_id + " to be splitted!");
+    }
+
+    invoice.line_items[0].amount_in_cents = refundedAmount;
+    newInvoice.line_items[0].amount_in_cents -= refundedAmount;
+
+    if (date) { // split by non-overlapping time range
+        newInvoice.line_items[0].service_period_end = date;
+        invoice.line_items[0].service_period_start = moment.utc(date).add(1, "day").toDate();
+    }
+
     /* New fake ID's must be unique! */
-    newInvoice.external_id += "a";
-    newInvoice.line_items.forEach(p => p.external_id += "a");
-    newInvoice.transactions.forEach(t => t.external_id += "a");
-    InvoiceBuilder.addPayments([cba], newInvoice, "Refund");
+    var suffix = "-" + Math.round(Math.random() * 100);
+    newInvoice.external_id += suffix;
+    newInvoice.line_items.forEach(p => p.external_id += suffix);
+    newInvoice.transactions.forEach(t => t.external_id += suffix);
     return newInvoice;
 };
 

@@ -83,6 +83,104 @@ Transformer.prototype.getCustomerUuid = function(customersById, accountId) {
 };
 
 /**
+ * If invoice only removed relevant products, it means it probably
+ * downgraded the customer to Free. In such case, the customer has practically canceled.
+ * The problem is the downgrade is really a cancel and if we want to track it as such,
+ * we have to omit the downgrage and cancel the previous invoice.
+ */
+Transformer.prototype.processCancellationInvoices = function(invoices) {
+    for (var i = 0; i < invoices.length; i++) {
+        var invoice = invoices[i];
+
+        /* Classification of cancelation invoices */
+        if (invoice.line_items.every(item => item.__amendmentType === "RemoveProduct" && item.amount_in_cents < 0)) {
+            logger.trace("Cancellation invoice: " + invoice.external_id);
+            try {
+                invoices.splice(i, 1); // throw away cancelation invoice
+                var toAdd = [];
+
+                var cancelationItems = _.sortBy(invoice.line_items
+                                            .filter(item => item.amount_in_cents), "service_period_start")
+                                            .reverse();
+
+                for (var j = 0; j < cancelationItems.length; j++) {
+                    var cancelItem = cancelationItems[j];
+                    var splitDate = cancelItem.service_period_start;
+
+                    // find closest previous invoice by subscription ID
+                    var searchedSubscription = cancelItem.subscription_external_id,
+                        refundedAmount = cancelItem.amount_in_cents,
+                        toProcessInvoice;
+
+                    for (var k = i - 1; k >= 0; k--) {
+                        if (invoices[k].__processed) {
+                            continue;
+                        }
+                        if (invoices[k].line_items
+                                .every(item => item.subscription_external_id === searchedSubscription)
+                            ) {
+                            toProcessInvoice = invoices[k];
+                            break;
+                        }
+                    }
+
+                    if (!toProcessInvoice) {
+                        throw new VError("Couldn't find invoice by subscription ID " + searchedSubscription +
+                                            " to cancel with " + invoice.external_id);
+                    }
+
+                    var toBeCanceled = toProcessInvoice.line_items
+                                            .filter(item => item.subscription_external_id)
+                                            .filter(item => item.__amendmentType !== "RemoveProduct");
+
+                    toProcessInvoice.__processed = true;
+                    var totalThatCanBeCanceled = toBeCanceled.reduce((sum, next) => sum + next.amount_in_cents, 0);
+
+                    logger.debug(totalThatCanBeCanceled, i, j, k, refundedAmount);
+
+                    // Cancel the subscription.
+                    toBeCanceled.forEach(i => i.cancelled_at = splitDate);
+
+                    /* Handling some special edge cases. */
+                    // 1) several invoices with monthly payments canceled by one invoice with a total of them
+                    if (totalThatCanBeCanceled < -refundedAmount) {
+                        cancelItem.amount_in_cents += totalThatCanBeCanceled;
+                        j--; //process the rest in the next pass
+
+                    // 2) only partially canceled & split by date. Useful, so we get the cancelation date correct.
+                    } else if (totalThatCanBeCanceled > -refundedAmount &&
+                                toBeCanceled.length === 1 &&
+                                toBeCanceled[0].service_period_start < splitDate && splitDate < toBeCanceled[0].service_period_end) {
+
+                        try {
+                            var newInvoice = PendingRefunds.splitInvoice(toProcessInvoice, -refundedAmount, splitDate);
+                            newInvoice.line_items.forEach(item => item.cancelled_at = splitDate);
+                            toAdd.push({k, newInvoice});
+                        } catch (err) {
+                            logger.warn("Couldn't split canceled invoice. Canceling subscription on it.");
+                        }
+                    }
+
+                    if (toAdd.length) { // adding after cycle, so the index doesn't get screwed
+                        toAdd.forEach(a => invoices.splice(a.k + 1, 0, a.newInvoice));
+                    }
+                }
+            } catch (err) {
+                throw new VError(err, "Couldn't process cancellation invoice " + invoice.external_id);
+            }
+        }
+    }
+
+    invoices.forEach(invoice => {
+        delete invoice.__processed;
+        invoice.line_items.forEach(i =>
+            delete i.__amendmentType
+        );
+    });
+    return invoices;
+};
+
+/**
  * From all information available in Zuora creates Invoices compatible with
  * Chartmogul.
  */
@@ -129,13 +227,18 @@ Transformer.prototype.makeInvoices = function(
                 })
                 .filter(invoice => invoice.line_items.length);
 
-            logger.trace("Invoices before hanging refunds", invoicesToImport.map(i => i.external_id));
+            logger.trace("Invoices", invoicesToImport.map(i => i.external_id));
+
+            invoicesToImport = self.processCancellationInvoices(invoicesToImport);
 
             try {
-                invoicesToImport = PendingRefunds.addHangingRefunds(
-                                        creditAdjsNoInvoiceByAccount[accountId],
-                                        invoicesToImport
-                                    );
+                if (creditAdjsNoInvoiceByAccount[accountId]) {
+                    invoicesToImport = PendingRefunds.addHangingRefunds(
+                                        creditAdjsNoInvoiceByAccount[accountId]
+                                            // I don't know, what to do with increases...
+                                            .filter(cba => cba.Type === "Decrease"),
+                                        invoicesToImport);
+                }
             } catch(err) {
                 throw new VError(err, "Failed to add extra-invoice refunds to account " + accountId);
             }
@@ -159,6 +262,12 @@ Transformer.prototype.makeInvoices = function(
                 .forEach(invoice => {
                     logger.error(invoice);
                     throw new VError("Invoice can't be unprorated with negative amount!");
+                });
+            invoicesToImport
+                .filter(invoice => invoice.line_items.some(line_item => new Date(line_item.service_period_start) >= new Date(line_item.service_period_end)))
+                .forEach(invoice => {
+                    logger.error(invoice);
+                    throw new VError("The service period start date must be before the end date.");
                 });
 
 
