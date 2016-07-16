@@ -65,8 +65,7 @@ ItemsBuilder.processItems = function(
 
     var discountMap = context.discountMap,
         adjustmentMap = context.adjustmentMap,
-        planUuids = context.planUuids,
-        invoiceAmendmentTypeMap = {};
+        planUuids = context.planUuids;
 
     logger.trace(items.map(i=>i.InvoiceItem.ChargeName));
 
@@ -177,7 +176,7 @@ ItemsBuilder.processItems = function(
             // if (!amount) {
             //     return;
             // }
-            invoiceAmendmentTypeMap[item.Amendment.Type] = true;
+
             // compile line item for chartmogul
             return {
                 type: "subscription",
@@ -193,7 +192,8 @@ ItemsBuilder.processItems = function(
                 //discount_code: undefined,
                 discount_amount_in_cents: Math.round(discount),
                 tax_amount_in_cents: item.InvoiceItem.TaxAmount,
-                external_id: item.InvoiceItem.Id
+                external_id: item.InvoiceItem.Id,
+                __amendmentType: item.Amendment.Type
             };
 
         })
@@ -203,18 +203,40 @@ ItemsBuilder.processItems = function(
                             proratedUsersCredit, proratedStorageCredit, context)
                         );
 
-    /* If invoice only removed relevant products, it means it probably
-     * downgraded the customer to Free. */
-    var amendmentTypes = Object.keys(invoiceAmendmentTypeMap);
-    if (amendmentTypes.length === 1 && amendmentTypes[0] === "RemoveProduct") {
-        var minStart = moment.utc(result.reduce(
-            (min, i) => Math.min(min, moment.utc(i.service_period_start)),
-            moment.utc()
-        ));
-        result.forEach(i => i.cancelled_at = minStart);
-    }
+    result = ItemsBuilder.mergeSimilar(result);
 
     return result;
+};
+
+/**
+ * Sometimes there are things listed separately for no reason.
+ */
+ItemsBuilder.mergeSimilar = function(items) {
+    for (var i = 0; i < items.length - 1; i++) {
+        var item = items[i];
+        for (var k = i + 1; k < items.length; k++) {
+            var another = items[k];
+            /* Items are practically the same... */
+            if (+item.service_period_start === +another.service_period_start &&
+                +item.service_period_end === +another.service_period_end &&
+                item.subscription_external_id === another.subscription_external_id &&
+                item.plan_uuid === another.plan_uuid &&
+                item.type === another.type &&
+                item.quantity !== -another.quantity
+            ) {
+                logger.debug("Merging item " + item.external_id + " with " + another.external_id);
+                item.prorated = item.prorated || another.prorated;
+                item.quantity += another.quantity;
+                item.discount_amount_in_cents += another.discount_amount_in_cents;
+                item.tax_amount_in_cents += another.tax_amount_in_cents;
+                item.amount_in_cents += another.amount_in_cents;
+                items.splice(k, 1);
+                k--; // process the same index again, because it is now a different item
+            }
+        }
+
+    }
+    return items.filter(i => i.quantity);
 };
 
 /* Utilities */
