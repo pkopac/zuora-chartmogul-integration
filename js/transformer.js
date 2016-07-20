@@ -160,10 +160,9 @@ Transformer.prototype.processCancellationInvoices = function(invoices) {
                             logger.warn("Couldn't split canceled invoice. Canceling subscription on it.");
                         }
                     }
-
-                    if (toAdd.length) { // adding after cycle, so the index doesn't get screwed
-                        toAdd.forEach(a => invoices.splice(a.k + 1, 0, a.newInvoice));
-                    }
+                }
+                if (toAdd.length) { // adding after cycle, so the index doesn't get screwed
+                    toAdd.forEach(a => invoices.splice(a.k + 1, 0, a.newInvoice));
                 }
             } catch (err) {
                 throw new VError(err, "Couldn't process cancellation invoice " + invoice.external_id);
