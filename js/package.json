@@ -24,6 +24,7 @@
         "lodash": "~3.5.0",
         "minimist" : "~1.2.0",
         "csvtojson": "*",
+        "json2csv": "~3.6.1",
         "moment-range": "*",
         "zuora" : "0.1.7",
         "chartmoguljs": "git://github.com/samepage-labs/chartmoguljs.git",

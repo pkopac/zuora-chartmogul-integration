@@ -19,30 +19,34 @@ var argv;
 function printHelpAndExit() {
     console.error("Integrate Zuora and ChartMogul.");
     console.error("  -c <file>, --config <file>    Path to config.json.");
-    console.error("  -i, --interactive             Run interactive ZOQL console.");
-    console.error("  -o <file>, --output <file>    Path to dump data (use with -q).");
-    console.error("  -q <query>, --query <query>   Run query (use with -o).");
     console.error("  -d, --dry                     Dry run doesn't interact with Chartmogul.");
+    console.error("  -e <output type>, --export <> Download MRR activity data from Chartmogul. Output: [csv | ...]");
+    console.error("  -h, --help                    Show this help message.");
+    console.error("  -i, --interactive             Run interactive ZOQL console.");
+    console.error("  -o <file>, --output <file>    Path to dump data (use with -q or -m).");
+    console.error("  -q <query>, --query <query>   Run query (use with -o).");
     console.error("  -u, --update                  Ignore 'existing' errors while importing to Chartmogul.");
     process.exit(1);
 }
 
 function processArgs() {
     argv = minimist(process.argv.slice(2),
-    { string: ["config", "query", "output"],
+    { string: ["config", "query", "output", "export"],
       boolean: ["interactive", "help", "dry", "update"],
       alias: {
           config: "c",
-          interactive: "i",
-          help: "h",
-          query: "q",
-          output: "o",
           dry: "d",
+          export: "e",
+          help: "h",
+          interactive: "i",
+          output: "o",
+          query: "q",
           update: "u"
       },
       "default": {
           config: DEFAULT_CONFIG_PATH,
-          interactive: false
+          interactive: false,
+          export: null
       }
     });
     if (argv.help) {
@@ -111,7 +115,20 @@ function runTransformation(configuration, dry, update) {
                 logger.fatal(err);
             }
             process.exit(err.statusCode || 1);
-        });
+        })
+        .done();
+}
+
+function runActivitiesExport(configuration, exportType, outputFile) {
+    var Exporter = require("./extra/exporter.js").Exporter,
+        exporter = new Exporter().configure(configuration.chartmogul);
+
+    var dataSource = "zuora";
+    if (configuration && configuration.transformer && configuration.transformer.dataSource) {
+        dataSource = configuration.transformer.dataSource;
+    }
+    exporter.run(dataSource, exportType, outputFile)
+        .done();
 }
 
 (function() {
@@ -128,6 +145,8 @@ function runTransformation(configuration, dry, update) {
         runInteractive(configuration);
     } else if (argv.query) {
         runQuery(configuration, argv.query, argv.output);
+    } else if (argv.export) {
+        runActivitiesExport(configuration, argv.export, argv.output);
     } else {
         runTransformation(configuration, argv.dry, argv.update);
     }
