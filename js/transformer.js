@@ -99,13 +99,13 @@ Transformer.prototype.processCancellationInvoices = function(invoices) {
                 invoices.splice(i, 1); // throw away cancelation invoice
                 var toAdd = [];
 
-                var cancelationItems = _.sortBy(invoice.line_items
-                                            .filter(item => item.amount_in_cents), "service_period_start")
-                                            .reverse();
+                // Only take the last cancelation per subscription to prevent UP and DOWN jumps in MRR
+                var bySub = _.groupBy(invoice.line_items.filter(item => item.amount_in_cents), "subscription_external_id");
+                var cancelationItems = Object.keys(bySub).map(sub => _.sortBy(bySub[sub], "service_period_start").reverse()[0]);
 
                 for (var j = 0; j < cancelationItems.length; j++) {
                     var cancelItem = cancelationItems[j];
-                    var splitDate = cancelItem.service_period_start;
+                    var splitDate = cancelItem.service_period_end;
 
                     // find closest previous invoice by subscription ID
                     var searchedSubscription = cancelItem.subscription_external_id,
@@ -242,11 +242,21 @@ Transformer.prototype.makeInvoices = function(
                 throw new VError(err, "Failed to add extra-invoice refunds to account " + accountId);
             }
 
+            // any invoice containing deleted subscriptions must be removed
             invoicesToImport = invoicesToImport.filter(invoice => invoice.line_items.every(
-                    // any invoice containing deleted subscriptions must be removed
                     line_item => line_item.subscription_external_id
                 ))
-                .filter(Boolean); // remove null and empty invoices;
+                // invoice that has total 0 and doesn't change anything is pretty useless (and breaks CM)
+                .filter(invoice => {
+                    var invoiceTotal = invoice.line_items.reduce((prev, item) => prev + item.amount_in_cents, 0);
+
+                    return !(invoiceTotal === 0 &&
+                            _.uniqBy(invoice.line_items, "subscription_external_id").length === 1 &&
+                            _.uniqBy(invoice.line_items, "service_period_start").length === 1 &&
+                            _.uniqBy(invoice.line_items, "service_period_end").length === 1 &&
+                            _.uniqBy(invoice.line_items, "plan_uuid").length === 1 &&
+                            _.uniqBy(invoice.line_items, i => Math.abs(i.quantity)).length === 1);
+                });
 
 
             /* Various checks */
