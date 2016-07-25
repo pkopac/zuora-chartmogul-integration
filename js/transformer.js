@@ -2,7 +2,7 @@
 
 var logger = require("log4js").getLogger("transformer"),
     Q = require("q"),
-    //moment = require("moment"),
+    moment = require("moment"),
     _ = require("lodash"),
     VError = require("verror"),
     InvoiceBuilder = require("./invoiceBuilder.js").InvoiceBuilder,
@@ -104,8 +104,11 @@ Transformer.prototype.processCancellationInvoices = function(invoices) {
                 var cancelationItems = Object.keys(bySub).map(sub => _.sortBy(bySub[sub], "service_period_start").reverse()[0]);
 
                 for (var j = 0; j < cancelationItems.length; j++) {
-                    var cancelItem = cancelationItems[j];
-                    var splitDate = cancelItem.service_period_end;
+                    var cancelItem = cancelationItems[j],
+                        splitDate;
+                    // HACK: Chartmogul goes haywire if canceled on the same day :/
+                    splitDate = moment.utc(cancelItem.service_period_start).add(1, "day").toDate();
+
 
                     // find closest previous invoice by subscription ID
                     var searchedSubscription = cancelItem.subscription_external_id,
@@ -180,6 +183,59 @@ Transformer.prototype.processCancellationInvoices = function(invoices) {
 };
 
 /**
+ * Two invoices after each other that cancel each other are actually not working in CM, must be removed.
+ */
+Transformer.prototype.removeAnnullingInvoices = function(invoices) {
+    for (var i = 1; i < invoices.length; i++) {
+
+        if (this.doInvoicesAnnul(invoices[i], invoices[i - 1])) {
+            invoices.splice(i - 1, 2); // remove the two stupid invoices
+        }
+    }
+    return invoices;
+};
+
+/**
+ * Mostly concerned with term, money, plan and subscription. Not comparing quantity.
+ */
+Transformer.prototype.doInvoicesAnnul = function(a, b) {
+    a = a.line_items;
+    b = b.line_items;
+    return a.reduce((prev, item) => prev + item.amount_in_cents, 0) ===
+                -b.reduce((prev, item) => prev + item.amount_in_cents, 0) &&
+        _.isEqual(new Set(a.map(i => i.subscription_external_id)),
+                  new Set(b.map(i => i.subscription_external_id))) &&
+        _.isEqual(new Set(a.map(i => i.service_period_start)),
+                  new Set(b.map(i => i.service_period_start))) &&
+        _.isEqual(new Set(a.map(i => i.service_period_end)),
+                  new Set(b.map(i => i.service_period_end))) &&
+        _.isEqual(new Set(a.map(i => i.plan_uuid)),
+                  new Set(b.map(i => i.plan_uuid)));
+};
+
+/**
+ * Invoices with only deleted subscriptions have to be removed.
+ * Invoice with no effect should be removed.
+ */
+Transformer.prototype.removeNonsenseInvoices = function(invoices) {
+    // any invoice containing deleted subscriptions must be removed
+    return invoices.filter(invoice => invoice.line_items.every(
+            line_item => line_item.subscription_external_id
+        ))
+        // invoice that has total 0 and doesn't change anything is pretty useless (and breaks CM)
+        .filter(invoice => {
+            var invoiceTotal = invoice.line_items.reduce((prev, item) => prev + item.amount_in_cents, 0),
+                ii = invoice.line_items;
+            return !(invoiceTotal === 0 &&
+                    (new Set(ii.map(i => i.subscription_external_id))).size === 1 &&
+                    (new Set(ii.map(i => i.service_period_start))).size === 1 &&
+                    (new Set(ii.map(i => i.service_period_end))).size === 1 &&
+                    (new Set(ii.map(i => i.plan_uuid))).size === 1 &&
+                    (new Set(ii.map(i => Math.abs(i.quantity)))).size === 1);
+        });
+};
+
+/**
  * From all information available in Zuora creates Invoices compatible with
  * Chartmogul.
  */
@@ -228,6 +284,9 @@ Transformer.prototype.makeInvoices = function(
 
             logger.trace("Invoices", invoicesToImport.map(i => i.external_id));
 
+            /* Any two invoices for the same term, annulling each other can be omitted. */
+            invoicesToImport = self.removeAnnullingInvoices(invoicesToImport);
+
             invoicesToImport = self.processCancellationInvoices(invoicesToImport);
 
             try {
@@ -242,21 +301,7 @@ Transformer.prototype.makeInvoices = function(
                 throw new VError(err, "Failed to add extra-invoice refunds to account " + accountId);
             }
 
-            // any invoice containing deleted subscriptions must be removed
-            invoicesToImport = invoicesToImport.filter(invoice => invoice.line_items.every(
-                    line_item => line_item.subscription_external_id
-                ))
-                // invoice that has total 0 and doesn't change anything is pretty useless (and breaks CM)
-                .filter(invoice => {
-                    var invoiceTotal = invoice.line_items.reduce((prev, item) => prev + item.amount_in_cents, 0);
-
-                    return !(invoiceTotal === 0 &&
-                            _.uniqBy(invoice.line_items, "subscription_external_id").length === 1 &&
-                            _.uniqBy(invoice.line_items, "service_period_start").length === 1 &&
-                            _.uniqBy(invoice.line_items, "service_period_end").length === 1 &&
-                            _.uniqBy(invoice.line_items, "plan_uuid").length === 1 &&
-                            _.uniqBy(invoice.line_items, i => Math.abs(i.quantity)).length === 1);
-                });
+            invoicesToImport = self.removeNonsenseInvoices(invoicesToImport);
 
 
             /* Various checks */
