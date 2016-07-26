@@ -3,7 +3,9 @@
 
 var Q = require("q"),
     fs = require("fs"),
-    minimist = require("minimist");
+    VError = require("verror"),
+    minimist = require("minimist"),
+    YAML = require("yamljs");
 
 Q.longStackSupport = true; //DEBUG!
 
@@ -15,7 +17,7 @@ var Transformer = require("./transformer.js").Transformer;
 var log4js = require("log4js");
 var logger = log4js.getLogger("app");
 
-const DEFAULT_CONFIG_PATH = "/etc/zuora-chartmogul/config.json";
+const DEFAULT_CONFIG_PATH = "/etc/zuora-chartmogul/config.yaml";
 
 var argv;
 
@@ -137,12 +139,12 @@ function runActivitiesExport(configuration, exportType, outputFile) {
 (function() {
     processArgs();
     try {
-        var configuration = JSON.parse(fs.readFileSync(argv.config, "utf8"));
+        var configuration = YAML.parse(fs.readFileSync(argv.config, "utf8"));
         if(configuration.log4js) {
             log4js.configure(configuration.log4js);
         }
     } catch (error) {
-        throw(error, "Couldn't load configuration file!");
+        throw new VError(error, "Couldn't load configuration file!");
     }
     if (argv.interactive) {
         runInteractive(configuration);

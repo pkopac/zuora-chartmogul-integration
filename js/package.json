@@ -17,21 +17,21 @@
         "deep-diff": "~0.3.4"
     },
     "dependencies": {
-        "fs": "~0.0.2",
-        "q": "~1.4.1",
-        "moment": ">=2.5.1",
-        "log4js": "~0.6.25",
-        "lodash": "~4.13.1",
-        "minimist" : "~1.2.0",
-        "csvtojson": "*",
-        "json2csv": "~3.6.1",
-        "moment-range": "*",
         "chartmoguljs": "git://github.com/samepage-labs/chartmoguljs.git",
-        "minimist" : "~1.2.0",
+        "country-data": "~0.0.25",
+        "csvtojson": "*",
+        "fs": "~0.0.2",
+        "json2csv": "~3.6.1",
+        "lodash": "~4.13.1",
+        "log4js": "~0.6.25",
+        "minimist": "~1.2.0",
+        "moment": ">=2.5.1",
+        "moment-range": "*",
+        "prompt": "~1.0.0",
+        "q": "~1.4.1",
         "request": "^2.74.0",
         "request-promise-any": "~1.0.2",
-        "prompt": "~1.0.0",
         "verror": "~1.6.1",
-        "country-data": "~0.0.25"
+        "yamljs": "^0.2.8"
     }
 }
