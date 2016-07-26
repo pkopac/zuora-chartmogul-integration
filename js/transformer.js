@@ -107,24 +107,33 @@ Transformer.prototype.processCancellationInvoices = function(invoices) {
 
                 for (var j = 0; j < cancelationItems.length; j++) {
                     var cancelItem = cancelationItems[j],
-                        splitDate;
-                    // HACK: Chartmogul goes haywire if canceled on the same day :/
-                    splitDate = moment.utc(cancelItem.service_period_start).add(1, "day").toDate();
-
+                        // HACK: Chartmogul goes haywire if canceled on the same day :/
+                        splitDate = moment.utc(cancelItem.service_period_start).add(1, "day").toDate();
 
                     // find closest previous invoice by subscription ID
                     var searchedSubscription = cancelItem.subscription_external_id,
                         refundedAmount = cancelItem.amount_in_cents,
-                        toProcessInvoice;
+                        toProcessInvoice = null,
+                        toProcessItems = null,
+                        canBeSplitted = false;
 
                     for (var k = i - 1; k >= 0; k--) {
-                        if (invoices[k].__processed) {
+                        if (invoices[k].line_items.every(i => i.__processed)) {
                             continue;
                         }
-                        if (invoices[k].line_items
-                                .every(item => item.subscription_external_id === searchedSubscription)
-                            ) {
+                        // On one invoice, there can be multiple subscriptions canceled
+                        toProcessItems = invoices[k].line_items
+                                            .filter(item => item.__amendmentType !== "RemoveProduct")
+                                            .filter(i => !i.__processed)
+                                            .filter(item => item.subscription_external_id === searchedSubscription);
+                        if (toProcessItems.length > 0) {
+                            toProcessItems.forEach(i => i.__processed = true);
                             toProcessInvoice = invoices[k];
+
+                            if (toProcessItems.length === toProcessInvoice.line_items.length) {
+                                canBeSplitted = true; // how to split invoice, but only some items? not implemented
+                            }
+
                             break;
                         }
                     }
@@ -134,17 +143,13 @@ Transformer.prototype.processCancellationInvoices = function(invoices) {
                                             " to cancel with " + invoice.external_id);
                     }
 
-                    var toBeCanceled = toProcessInvoice.line_items
-                                            .filter(item => item.subscription_external_id)
-                                            .filter(item => item.__amendmentType !== "RemoveProduct");
 
-                    toProcessInvoice.__processed = true;
-                    var totalThatCanBeCanceled = toBeCanceled.reduce((sum, next) => sum + next.amount_in_cents, 0);
+                    var totalThatCanBeCanceled = toProcessItems.reduce((sum, next) => sum + next.amount_in_cents, 0);
 
                     logger.debug(totalThatCanBeCanceled, i, j, k, refundedAmount);
 
                     // Cancel the subscription.
-                    toBeCanceled.forEach(i => i.cancelled_at = splitDate);
+                    toProcessItems.forEach(i => i.cancelled_at = splitDate);
 
                     /* Handling some special edge cases. */
                     // 1) several invoices with monthly payments canceled by one invoice with a total of them
@@ -153,9 +158,10 @@ Transformer.prototype.processCancellationInvoices = function(invoices) {
                         j--; //process the rest in the next pass
 
                     // 2) only partially canceled & split by date. Useful, so we get the cancelation date correct.
-                    } else if (totalThatCanBeCanceled > -refundedAmount &&
-                                toBeCanceled.length === 1 &&
-                                toBeCanceled[0].service_period_start < splitDate && splitDate < toBeCanceled[0].service_period_end) {
+                    } else if (canBeSplitted &&
+                                totalThatCanBeCanceled > -refundedAmount &&
+                                toProcessItems.length === 1 &&
+                                toProcessItems[0].service_period_start < splitDate && splitDate < toProcessItems[0].service_period_end) {
 
                         try {
                             var newInvoice = PendingRefunds.splitInvoice(toProcessInvoice, -refundedAmount, splitDate);

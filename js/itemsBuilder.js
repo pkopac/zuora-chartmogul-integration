@@ -148,15 +148,17 @@ ItemsBuilder.processItems = function(
 
             /* Deal with invoice adjustments */
             if (context.invoiceAdjustmentAmount) {
+                // subtracting is basically discount
                 if (context.invoiceAdjustmentAmount < 0) {
-                    discount -= amount;
+                    discount += context.invoiceAdjustmentAmount;
                 }
+                // adding charge by invoice adjustment is pretty crazy, so who knows what that should be...
 
-                // perfect match
+                // perfect match of amount and adjustment?
                 if (amount + context.invoiceAdjustmentAmount === 0) {
                     context.invoiceAdjustmentAmount = 0;
                     amount = 0;
-                // partial match
+                // partial match?
                 } else if (Math.sign(amount) !== Math.sign(context.invoiceAdjustmentAmount)) {
                     if (Math.abs(amount) > Math.abs(context.invoiceAdjustmentAmount)) {
                         amount += context.invoiceAdjustmentAmount;
@@ -166,16 +168,12 @@ ItemsBuilder.processItems = function(
                         amount = 0;
                     }
                 }
-                // if signs match, skip this item, it probably should go to another one
+                // else if signs match, skip this item, it probably should go to another one
             }
 
             /* chartmogul number format = in cents, discount positive number */
             amount = Math.round(amount * 100);
             discount = Math.round(discount * -100);
-
-            // if (!amount) {
-            //     return;
-            // }
 
             // compile line item for chartmogul
             return {

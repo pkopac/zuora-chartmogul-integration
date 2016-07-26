@@ -217,25 +217,6 @@ InvoiceBuilder.addInvoiceItems = function(invoiceItems, invoice, adjustments, in
     return invoice;
 };
 
-// InvoiceBuilder.processNegativeItems = function(items, invoice) {
-//     var positive = items.filter(function (lineItem) {
-//         return lineItem.amount_in_cents >= 0;
-//     });
-//     items.filter(function (lineItem) {
-//         return lineItem.amount_in_cents < 0;
-//     }).forEach(function (negativeItem) {
-//         var found = positive.find(item => negativeItem.subscription_external_id === item.subscription_external_id);
-//         if (!found) {
-//             logger.warn("Invoice %s has unmatched negative items!", invoice.external_id, negativeItem);
-//             positive.push(negativeItem); // so this unmatched item gets in the result
-//             return;
-//         }
-//         found.amount_in_cents += negativeItem.amount_in_cents;
-//         found.quantity -= negativeItem.quantity;
-//     });
-//     return positive;
-// };
-
 InvoiceBuilder.testTotalOfInvoiceEqualsTotalOfLineItems = function (
     firstItem, items, itemAdjustmentAmountTotal, invoiceAdjustmentAmount) {
     var shouldBeTotal = Math.round((firstItem.Invoice.Amount + itemAdjustmentAmountTotal + invoiceAdjustmentAmount) * 100),
@@ -304,6 +285,9 @@ InvoiceBuilder.itemsForInvoice = function(invoiceItems,
                 charged.push(item);
             }
         } else if (name in ItemsBuilder.USER_PRORATION_CREDIT) {
+            // although proration credit is done when removing/replacing/refunding, the relation is
+            // to the original Amendment of type NewProduct, which is confusing (wouldn't be able to detect cancellation)
+            item.Amendment.Type = "RemoveProduct";
             proratedUsersCredit.push(item);
         } else if (name in ItemsBuilder.STORAGE_PRORATION_CREDIT) {
             proratedStorageCredit.push(item);
@@ -315,7 +299,7 @@ InvoiceBuilder.itemsForInvoice = function(invoiceItems,
         }
     });
 
-    // IMPORTANT: prorated users processed first to prioritize credit attachment 
+    // IMPORTANT: prorated users processed first to prioritize credit attachment
     return ItemsBuilder.processItems(
         usersProration.concat(charged),
         proratedUsersCredit, proratedStorageCredit,
