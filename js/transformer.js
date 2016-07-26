@@ -50,6 +50,11 @@ Transformer.prototype.groupInsertPlansAndCustomers = function (
     var self = this;
     self.importer.dataSource = dsUuid;
     var itemsByAccount = self.filterAndGroupItems(invoices);
+
+    creditAdjs = creditAdjs.filter(a => a.CreditBalanceAdjustment.Status === "Processed")
+                            // exclude adjustments to excluded invoices
+                           .filter(a => !self.excludeInvoices || !self.excludeInvoices.has(a.Invoice.InvoiceNumber));
+
     return Q.all([self.importer.insertPlans()
                     .then(self.extIds2Uuids),
                   self.importCustomersFromItems(itemsByAccount)
@@ -63,12 +68,9 @@ Transformer.prototype.groupInsertPlansAndCustomers = function (
                             p => p.Invoice.InvoiceNumber),
                   _.groupBy(invoiceAdjs.filter(a => a.InvoiceAdjustment.Status === "Processed"),
                             p => p.Invoice.InvoiceNumber),
-                  _.groupBy(creditAdjs.filter(a => a.CreditBalanceAdjustment.Status === "Processed"),
+                  _.groupBy(creditAdjs,
                             p => p.Invoice.InvoiceNumber),
-                  _.groupBy(creditAdjs.filter(a =>
-                              a.Refund.RefundNumber !== "" &&
-                              a.CreditBalanceAdjustment.Status === "Processed" &&
-                              a.Invoice.InvoiceNumber === ""),
+                  _.groupBy(creditAdjs.filter(a => a.Refund.RefundNumber !== "" && a.Invoice.InvoiceNumber === ""),
                             p => p.Account.SamepageId__c || p.Account.AccountNumber)
               ]);
 };
@@ -344,6 +346,9 @@ Transformer.prototype.configure = function (json) {
         this.includeAccounts = json.accounts.include && new Set(json.accounts.include);
         this.excludeAccounts = new Set(json.accounts.exclude || []);
     }
+    if (json.invoices) {
+        this.excludeInvoices = new Set(json.invoices.exclude || []);
+    }
 };
 
 
@@ -356,7 +361,8 @@ Transformer.prototype.filterAndGroupItems = function (invoiceItems) {
     var self = this;
     var itemsByAccountId = _.groupBy(invoiceItems
                 .filter(i => i.Invoice.Status === "Posted") //remove invoices that were canceled/just drafted
-                .filter(i => i.InvoiceItem.AccountingCode !== "FREE"), //remove free items
+                .filter(i => i.InvoiceItem.AccountingCode !== "FREE") //remove free items
+                .filter(i => !self.excludeInvoices || !self.excludeInvoices.has(i.Invoice.InvoiceNumber)), //remove blacklisted invoices
             (rec) =>
                 rec.Account.SamepageId__c || rec.Account.AccountNumber);
 
