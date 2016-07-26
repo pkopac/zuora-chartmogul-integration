@@ -7,6 +7,9 @@ var Q = require("q"),
 
 Q.longStackSupport = true; //DEBUG!
 
+//request-promise-any - register Q as preferred promise library
+require("any-promise/register/q");
+
 var Loader = require("./loader.js").Loader;
 var Transformer = require("./transformer.js").Transformer;
 var log4js = require("log4js");

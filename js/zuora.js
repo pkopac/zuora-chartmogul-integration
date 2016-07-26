@@ -3,7 +3,7 @@ const ZUORA_POLLING = 2000;
 
 var logger = require("log4js").getLogger("zuora"),
     Q = require("q"),
-    request = require("request-promise"),
+    request = require("request-promise-any"),
     Converter = require("csvtojson").Converter;
 
 /**
