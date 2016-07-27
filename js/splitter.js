@@ -2,6 +2,8 @@
 
 var Invoice = require("./importer.js").Invoice,
     VError = require("verror"),
+    moment = require("moment"),
+    InvoiceBuilder = require("./invoiceBuilder.js").InvoiceBuilder,
     logger = require("log4js").getLogger("splitter");
 
 var Splitter = {};
@@ -60,3 +62,5 @@ Splitter.splitAdjustment = function(invoice, refundedAmount, invoiceTotal, cba) 
     InvoiceBuilder.addPayments([processNow], invoice, "Refund");
     return processNext;
 };
+
+exports.Splitter = Splitter;

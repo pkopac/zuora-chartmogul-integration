@@ -186,18 +186,19 @@ Transformer.prototype.makeInvoices = function(
 
             logger.trace("Invoices", invoicesToImport.map(i => i.external_id));
 
-            /* Any two invoices for the same term, annulling each other can be omitted. */
-            invoicesToImport = self.removeAnnullingInvoices(invoicesToImport);
-
             invoicesToImport = Cancellation.cancelInvoices(invoicesToImport);
 
+            /* Any two invoices for the same term, annulling each other can be omitted.
+             * It's after canceling, because that might be better way to deal with such invoices. */
+            invoicesToImport = self.removeAnnullingInvoices(invoicesToImport);
+
             try {
-                if (creditAdjsNoInvoiceByAccount[accountId]) {
-                    invoicesToImport = PendingRefunds.addHangingRefunds(
-                                        creditAdjsNoInvoiceByAccount[accountId]
-                                            // I don't know, what to do with increases...
-                                            .filter(cba => cba.Type === "Decrease"),
-                                        invoicesToImport);
+                var cbas = creditAdjsNoInvoiceByAccount[accountId] && creditAdjsNoInvoiceByAccount[accountId]
+                                // I don't know, what to do with increases...
+                                .filter(cba => cba.CreditBalanceAdjustment.Type === "Decrease");
+
+                if (cbas && cbas.length) {
+                    invoicesToImport = PendingRefunds.addHangingRefunds(cbas, invoicesToImport);
                 }
             } catch(err) {
                 throw new VError(err, "Failed to add extra-invoice refunds to account " + accountId);

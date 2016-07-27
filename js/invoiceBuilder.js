@@ -147,6 +147,7 @@ InvoiceBuilder.testCreditAdjustmentCorrect = function(invoice, creditAdjs, total
     return creditAdjusted;
 };
 
+//TODO: refactor to a separate module for payments & refunds
 /**
  * @param type Refund|Payment
  */
