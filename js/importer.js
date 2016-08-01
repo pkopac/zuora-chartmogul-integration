@@ -205,8 +205,11 @@ Importer.prototype._cap = function(limit, desc) {
         if (++counter % 1000 === 0) {
             logger.debug("Sending " + counter + " " + desc + " request...");
         }
-        call() // in case
-            .then(d => allData.push(d), err => allData.push(err))
+        call()
+        /* keeping API of allSettled, not using it, because the final promises don't exist
+           at time of returning of our artificial promise. */
+            .then(value => allData.push({value, state: "fulfilled"}),
+                  reason => allData.push({reason, state: "rejected"}))
             .fin(() => {
                 pending--;
                 if (!pending) {

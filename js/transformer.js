@@ -311,7 +311,7 @@ Transformer.prototype.shiftDates = function(invoices) {
             var start = moment.utc(i.service_period_start),
                 str = start.toISOString();
             if (seenDates[str]) { // every next change of period is shifted by one second.
-                start.add(seenDates[str]++, "second");
+                i.service_period_start = start.add(seenDates[str]++, "second").toDate();
             } else {
                 seenDates[str] = 1;
             }
@@ -332,7 +332,6 @@ Transformer.prototype.importCustomers = function (customers) {
     if (Array.isArray(customers)) {
         return self.importer.insertCustomers(
             customers.filter(c => c.Account.Name)
-                .filter(c => c.Account.Name)
                 .filter(c => c.Account.SamepageId__c || c.Account.AccountNumber)
                 .map(c => {
                     return [c.Account.SamepageId__c || c.Account.AccountNumber, c];
@@ -340,7 +339,7 @@ Transformer.prototype.importCustomers = function (customers) {
             );
     } else {
         return self.importer.insertCustomers(Object.keys(customers)
-            .filter()
+            // not filtering by name, because if we can't import someone with an invoice, that's an important error
             .map(accountId => [accountId, customers[accountId][0]]));
     }
 };
