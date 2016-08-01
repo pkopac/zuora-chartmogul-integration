@@ -17,6 +17,7 @@
         "deep-diff": "~0.3.4"
     },
     "dependencies": {
+        "block-queue": "*",
         "chartmoguljs": "git://github.com/samepage-labs/chartmoguljs.git",
         "country-data": "~0.0.25",
         "csvtojson": "*",

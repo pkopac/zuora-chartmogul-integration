@@ -1,22 +1,22 @@
 ---
-  chartmogul: 
+  chartmogul:
     accountToken: ""
     secretKey: ""
-  zuora: 
+  zuora:
     username: ""
     password: ""
     production: true
-  transformer: 
+  transformer:
+    includeFree: false
     dataSource: "Zuora-00"
-    #accounts: 
-      exclude: 
+    #accounts:
+      exclude:
         - ""
-      include: 
+      include:
         - ""
-  log4js: 
-    levels: 
+  log4js:
+    levels:
       [all]: "DEBUG"
-    appenders: 
-      - 
+    appenders:
+      -
         type: "console"
-

@@ -39,6 +39,16 @@ Loader.prototype.getAllInvoiceItems = function() {
     );
 };
 
+Loader.prototype.getAllCustomers = function() {
+    return this.aqua.zoqlRequest(
+        "select " +
+        "Account.Name,Account.AccountNumber,Account.SamepageId__c,Account.Status," +
+        "BillToContact.City,BillToContact.Country,BillToContact.PostalCode,BillToContact.State" +
+        " from Account",
+        "all Accounts"
+    );
+};
+
 /**
  * Invoice payments + invoice number + payment realization.
  */

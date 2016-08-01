@@ -3,6 +3,7 @@
 var logger = require("log4js").getLogger("importer");
 var cm = require("chartmoguljs"),
     cd = require("country-data"),
+    queue = require("block-queue"),
     Q = require("q");
 
 //TODO: HTTP 422 means "Unprocessable entity". It must be checked therefore, whether the error is duplicate index key, or something else!
@@ -25,7 +26,8 @@ var Importer = function () {
     this.dataSource = null; // must be set later
 };
 
-const CHARTMOGUL_DELAY = 10000;
+const CHARTMOGUL_DELAY = 10000,
+    MAX_PARALLEL_CUSTOMERS_REQUESTS = 1000;
 
 Importer.PLANS = {
     PRO_ANNUALLY: "Pro Annually",
@@ -172,9 +174,14 @@ Importer.prototype.insertPlans = function () {
 };
 
 Importer.prototype.insertCustomers = function(customers) {
-    return Q.allSettled(
-        customers.map(info => this._insertCustomer(info[0], info[1])))
-      .then(listHandler(
+    customers = customers.slice(0, 100);
+    var cap = this._cap(MAX_PARALLEL_CUSTOMERS_REQUESTS, "customers");
+
+    customers.map(info => cap.limit(
+        this._insertCustomer.bind(this, info[0], info[1])
+    ));
+
+    return cap.result.then(listHandler(
           cm.import.CUSTOMER_EXISTS_ERROR,
           cm.import.listAllCustomers.bind(null, this.dataSource),
           this.skip));
@@ -183,6 +190,43 @@ Importer.prototype.insertCustomers = function(customers) {
 Importer.prototype._countryCode = function(longIsoCountry) {
     var data = cd.lookup.countries({name: longIsoCountry})[0];
     return data ? data.alpha2 : undefined;
+};
+
+/**
+ * Necessary, because we can't send 60 000 HTTP requests all at once -> Out of memory
+ */
+Importer.prototype._cap = function(limit, desc) {
+    var counter = 0,
+        pending = 0,
+        allData = [],
+        all = Q.defer();
+
+    var q = queue(limit, (call, done) => {
+        if (++counter % 1000 === 0) {
+            logger.debug("Sending " + counter + " " + desc + " request...");
+        }
+        call() // in case
+            .then(d => allData.push(d), err => allData.push(err))
+            .fin(() => {
+                pending--;
+                if (!pending) {
+                    logger.info("Processed " + counter + " " + desc);
+                    all.resolve(allData);
+                }
+                done();
+            });
+    });
+
+    return {
+        /** call must be bound function returning promise */
+        limit: function (call) {
+            pending++;
+            q.push(call);
+        },
+        /** listen to this promise for final result */
+        result: all.promise
+    };
+
 };
 
 Importer.prototype._insertCustomer = function(accountId, info) {

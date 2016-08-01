@@ -15,6 +15,8 @@ var logger = require("log4js").getLogger("transformer"),
 var Transformer = function(loader, importer) {
     this.loader = loader;
     this.importer = importer;
+
+    this.includeFree = false;
 };
 
 /**
@@ -34,6 +36,8 @@ Transformer.prototype.reloadAll = function () {
 
     return Q.all([
         this.loader.getAllInvoiceItems(),
+        // not executed if includeFree !== true
+        this.includeFree && this.loader.getAllCustomers(),
         this.loader.getAllInvoicePayments(),
         this.loader.getAllRefundInvoicePayments(),
         this.loader.getAllInvoiceItemAdjustments(),
@@ -44,7 +48,7 @@ Transformer.prototype.reloadAll = function () {
 };
 
 Transformer.prototype.groupInsertPlansAndCustomers = function (
-    invoices, payments, refunds, itemAdjs, invoiceAdjs, creditAdjs, dsUuid) {
+    invoices, customers, payments, refunds, itemAdjs, invoiceAdjs, creditAdjs, dsUuid) {
 
     logger.info("Processing data...");
 
@@ -58,7 +62,7 @@ Transformer.prototype.groupInsertPlansAndCustomers = function (
 
     return Q.all([self.importer.insertPlans()
                     .then(self.extIds2Uuids),
-                  self.importCustomersFromItems(itemsByAccount)
+                  self.importCustomers(this.includeFree ? customers : itemsByAccount)
                     .then(self.extIds2Uuids),
                   itemsByAccount,
                   _.groupBy(payments,
@@ -252,6 +256,9 @@ Transformer.prototype.configure = function (json) {
     if (json.invoices) {
         this.excludeInvoices = new Set(json.invoices.exclude || []);
     }
+    if (json.includeFree) {
+        this.includeFree = true;
+    }
 };
 
 
@@ -317,12 +324,25 @@ Transformer.prototype.shiftDates = function(invoices) {
 /**
  * Uses the BillToContact pre-joined info to load necessary customers.
  * Depends on which InvoiceItems have been filtered.
+ * Can process grouped items or array of customers, depending on settings.
  * @returns promise for all customers insertion
  */
-Transformer.prototype.importCustomersFromItems = function (itemsByAccountId) {
+Transformer.prototype.importCustomers = function (customers) {
     var self = this;
-    return self.importer.insertCustomers(Object.keys(itemsByAccountId)
-        .map(accountId => [accountId, itemsByAccountId[accountId][0]]));
+    if (Array.isArray(customers)) {
+        return self.importer.insertCustomers(
+            customers.filter(c => c.Account.Name)
+                .filter(c => c.Account.Name)
+                .filter(c => c.Account.SamepageId__c || c.Account.AccountNumber)
+                .map(c => {
+                    return [c.Account.SamepageId__c || c.Account.AccountNumber, c];
+                })
+            );
+    } else {
+        return self.importer.insertCustomers(Object.keys(customers)
+            .filter()
+            .map(accountId => [accountId, customers[accountId][0]]));
+    }
 };
 
 /* Helper functions */
