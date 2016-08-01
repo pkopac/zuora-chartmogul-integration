@@ -3,6 +3,7 @@
 var logger = require("log4js").getLogger("transformer"),
     Q = require("q"),
     _ = require("lodash"),
+    moment = require("moment"),
     VError = require("verror"),
     InvoiceBuilder = require("./invoiceBuilder.js").InvoiceBuilder,
     PendingRefunds = require("./pendingRefunds.js").PendingRefunds,
@@ -206,6 +207,7 @@ Transformer.prototype.makeInvoices = function(
 
             invoicesToImport = self.removeNonsenseInvoices(invoicesToImport);
 
+            invoicesToImport = self.shiftDates(invoicesToImport);
 
             /* Various checks */
             invoicesToImport
@@ -261,6 +263,13 @@ Transformer.prototype.configure = function (json) {
 Transformer.prototype.filterAndGroupItems = function (invoiceItems) {
     var self = this;
     var itemsByAccountId = _.groupBy(invoiceItems
+                .map(i => {
+                    if (!i.Invoice) {
+                        logger.error("This item doesn't have expected data!", i);
+                        throw new VError("Missing data from Zuora!");
+                    }
+                    return i;
+                })
                 .filter(i => i.Invoice.Status === "Posted") //remove invoices that were canceled/just drafted
                 .filter(i => i.InvoiceItem.AccountingCode !== "FREE") //remove free items
                 .filter(i => !self.excludeInvoices || !self.excludeInvoices.has(i.Invoice.InvoiceNumber)), //remove blacklisted invoices
@@ -278,6 +287,31 @@ Transformer.prototype.filterAndGroupItems = function (invoiceItems) {
             filteredItemsByAccount[accountId] = itemsByAccountId[accountId];
         });
     return filteredItemsByAccount;
+};
+
+/**
+ * HACK: Chartmogul can't process two events at the same second!
+ */
+Transformer.prototype.shiftDates = function(invoices) {
+    // cache of dates for one account's invoices
+    var seenDates = {};
+    invoices.forEach(inv => { // invoices must be sorted by issue time = external_id!
+        inv.line_items.forEach(i => {
+            if (i.cancelled_at) {
+                // cancel always after period start and prorations
+                i.cancelled_at = moment.utc(i.cancelled_at).add(1, "minute").toDate();
+            }
+            var start = moment.utc(i.service_period_start),
+                str = start.toISOString();
+            if (seenDates[str]) { // every next change of period is shifted by one second.
+                start.add(seenDates[str]++, "second");
+            } else {
+                seenDates[str] = 1;
+            }
+            // note: there's no special handling of end of periods
+        });
+    });
+    return invoices;
 };
 
 /**
