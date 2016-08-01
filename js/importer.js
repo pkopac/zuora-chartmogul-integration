@@ -174,7 +174,6 @@ Importer.prototype.insertPlans = function () {
 };
 
 Importer.prototype.insertCustomers = function(customers) {
-    customers = customers.slice(0, 100);
     var cap = this._cap(MAX_PARALLEL_CUSTOMERS_REQUESTS, "customers");
 
     customers.map(info => cap.limit(
@@ -206,7 +205,7 @@ Importer.prototype._cap = function(limit, desc) {
             logger.debug("Sending " + counter + " " + desc + " request...");
         }
         call()
-        /* keeping API of allSettled, not using it, because the final promises don't exist
+        /* keeping API of allSettled; not using it, because the final promises don't exist
            at time of returning of our artificial promise. */
             .then(value => allData.push({value, state: "fulfilled"}),
                   reason => allData.push({reason, state: "rejected"}))

@@ -105,8 +105,7 @@ Cancellation._findAndProcessCancellations = function(invoice, invoices, i) {
 Cancellation._resolveCancellation = function(toProcessInvoice, toProcessItems, cancelItem) {
     var totalThatCanBeCanceled = toProcessItems.reduce((sum, next) => sum + next.amount_in_cents, 0),
         refundedAmount = cancelItem.amount_in_cents,
-        // HACK: Chartmogul goes haywire if canceled on the same day :/
-        splitDate = moment.utc(cancelItem.service_period_start).add(1, "day").toDate();
+        splitDate = cancelItem.service_period_start;
 
     logger.debug("cancellation: totalThatCanBeCanceled %d, refundedAmount %d", totalThatCanBeCanceled, refundedAmount);
 

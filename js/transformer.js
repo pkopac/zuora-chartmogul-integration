@@ -304,16 +304,23 @@ Transformer.prototype.shiftDates = function(invoices) {
     var seenDates = {};
     invoices.forEach(inv => { // invoices must be sorted by issue time = external_id!
         inv.line_items.forEach(i => {
-            if (i.cancelled_at) {
-                // cancel always after period start and prorations
-                i.cancelled_at = moment.utc(i.cancelled_at).add(1, "minute").toDate();
-            }
+
             var start = moment.utc(i.service_period_start),
                 str = start.toISOString();
             if (seenDates[str]) { // every next change of period is shifted by one second.
                 i.service_period_start = start.add(seenDates[str]++, "second").toDate();
             } else {
                 seenDates[str] = 1;
+            }
+
+            if (i.cancelled_at) {
+                var cancel = moment.utc(i.cancelled_at);
+                str = start.toISOString();
+                if (seenDates[str]) {
+                    i.cancelled_at = moment.utc(cancel).add(seenDates[str]++, "second").toDate();
+                } else {
+                    seenDates[str] = 1;
+                }
             }
             // note: there's no special handling of end of periods
         });
