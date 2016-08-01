@@ -1,7 +1,7 @@
 "use strict";
 
 var logger = require("log4js").getLogger("cancellation"),
-    Splitter = require("./splitter.js").Splitter,
+    // Splitter = require("./splitter.js").Splitter,
     VError = require("verror"),
     _ = require("lodash"),
     moment = require("moment");
@@ -95,14 +95,14 @@ Cancellation._findAndProcessCancellations = function(invoice, invoices, i) {
     }
 
     if (toAdd.length) { // adding after cycle, so the index doesn't get screwed
-        toAdd.forEach(a => invoices.splice(a.k + 1, 0, a.newInvoice));
+        toAdd.forEach(a => invoices.splice(a.k, 0, a.newInvoice));
     }
 };
 
 /**
  * This function gets the found match and tries to apply possible cancellation ways.
  */
-Cancellation._resolveCancellation = function(toProcessInvoice, toProcessItems, cancelItem, canBeSplitted) {
+Cancellation._resolveCancellation = function(toProcessInvoice, toProcessItems, cancelItem) {
     var totalThatCanBeCanceled = toProcessItems.reduce((sum, next) => sum + next.amount_in_cents, 0),
         refundedAmount = cancelItem.amount_in_cents,
         // HACK: Chartmogul goes haywire if canceled on the same day :/
@@ -118,21 +118,27 @@ Cancellation._resolveCancellation = function(toProcessInvoice, toProcessItems, c
     if (totalThatCanBeCanceled < -refundedAmount) {
         cancelItem.amount_in_cents += totalThatCanBeCanceled;
         return true; //process the rest in the next pass
+    }
+
+    // ISSUE: invoices can't be split while canceling, because the splitting causes the amount to be partially
+    // downgraded and partially canceled. Better if we cancel it all. Also, it's enough to put the cancel date on the last invoice.
 
     // 2) only partially canceled & split by date. Useful, so we get the cancellation date correct.
-    } else if (canBeSplitted &&
-                totalThatCanBeCanceled > -refundedAmount &&
-                toProcessItems.length === 1 &&
-                toProcessItems[0].service_period_start < splitDate && splitDate < toProcessItems[0].service_period_end) {
-
-        try {
-            var newInvoice = Splitter.splitInvoice(toProcessInvoice, -refundedAmount, splitDate);
-            newInvoice.line_items.forEach(item => item.cancelled_at = splitDate);
-            return newInvoice;
-        } catch (err) {
-            logger.warn("Couldn't split canceled invoice. Canceling subscription on it.");
-        }
-    }
+    // } else if (canBeSplitted &&
+    //             totalThatCanBeCanceled > -refundedAmount &&
+    //             toProcessItems.length === 1 &&
+    //             moment.utc(toProcessItems[0].service_period_start).isBefore(splitDate) &&
+    //             moment.utc(splitDate).isBefore(toProcessItems[0].service_period_end)) {
+    //
+    //     try {
+    //         var newInvoice = Splitter.splitInvoice(toProcessInvoice, -refundedAmount, splitDate);
+    //         var cancelDate = moment.utc(splitDate).add(1, "day").toDate();
+    //         toProcessInvoice.line_items.forEach(item => item.cancelled_at = cancelDate);
+    //         return newInvoice;
+    //     } catch (err) {
+    //         logger.warn("Couldn't split canceled invoice. Canceling subscription on it.");
+    //     }
+    // }
     // note: if nothing previous matched, the previous invoice is simply canceled and that's it
 };
 

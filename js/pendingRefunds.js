@@ -2,27 +2,26 @@
 
 var logger = require("log4js").getLogger("pendingRefunds"),
     VError = require("verror"),
-    _ = require("lodash"),
     moment = require("moment"),
     InvoiceBuilder = require("./invoiceBuilder.js").InvoiceBuilder,
     Splitter = require("./splitter.js").Splitter;
 
 var PendingRefunds = {};
 
-PendingRefunds.addHangingRefunds = function(pendingCBARefunds, invoicesToImport) {
+PendingRefunds.addHangingRefunds = function(pendingCBARefunds, invoices) {
     // sort without mutating original, iterate in reverse order
-    var invoices = _.sortBy(invoicesToImport, "external_id").reverse();
+    invoices.reverse();
     for (var i = 0; i < invoices.length; i++) {
         let invoice = invoices[i];
         let result = PendingRefunds.addRefundsFromStandaloneCBA(pendingCBARefunds, invoice);
         pendingCBARefunds = result[0];
         let additionalInvoice = result[1];
         if (additionalInvoice) {
-            invoices.push(additionalInvoice);
+            invoices.splice(++i, 0, additionalInvoice); // add invoice after this one
         }
     }
     // we need to re-sort, since we possibly added some invoices and reverted order
-    invoices = _.sortBy(invoices, "external_id");
+    invoices.reverse();
     if (pendingCBARefunds && pendingCBARefunds.length) {
         throw new VError("Pending extra-invoice refunds " + JSON.stringify(pendingCBARefunds));
     }
@@ -65,10 +64,11 @@ PendingRefunds.addRefundsFromStandaloneCBA = function(cbas, invoice) {
         return [filteredCbas];
 
     // split invoice, because chartMogul doesn't support partial refund
+    // !!! Splitting turned off, because it generates unreal MRR in CM upgrades & downgrades instead of cancel.
     } else if (refundedAmount < invoiceTotal) {
-        var newInvoice = Splitter.splitInvoice(invoice, refundedAmount);
-        InvoiceBuilder.addPayments([found], newInvoice, "Refund");
-        return [filteredCbas, newInvoice];
+        // var newInvoice = Splitter.splitInvoice(invoice, refundedAmount);
+        // InvoiceBuilder.addPayments([found], invoice, "Refund");
+        return [filteredCbas];
      // split adjustment, because it is more than there's on the invoice
     } else {
         filteredCbas.push(Splitter.splitAdjustment(invoice, refundedAmount, invoiceTotal, found));
