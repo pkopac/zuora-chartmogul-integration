@@ -32,6 +32,7 @@ Loader.prototype.getAllInvoiceItems = function() {
         "Invoice.AdjustmentAmount,Invoice.Amount,Invoice.Balance,Invoice.DueDate,"+
         "Invoice.InvoiceDate,Invoice.InvoiceNumber,Invoice.PaymentAmount,"+
         "Invoice.PostedDate,Invoice.RefundAmount,Invoice.Status,"+
+        "ProductRatePlan.Id," +
         "Subscription.CancelledDate,Subscription.Id,Subscription.Name,Subscription.Status,Subscription.SubscriptionEndDate"+
         " from InvoiceItem",
 
@@ -46,6 +47,16 @@ Loader.prototype.getAllCustomers = function() {
         "BillToContact.City,BillToContact.Country,BillToContact.PostalCode,BillToContact.State" +
         " from Account",
         "all Accounts"
+    );
+};
+
+Loader.prototype.getAllPlans = function() {
+    return this.aqua.zoqlRequest(
+        "select " +
+        "ProductRatePlan.Id,ProductRatePlan.Name,ProductRatePlan.Type__c," +
+        "AccountingCode,BillingPeriod" +
+        " from ProductRatePlanCharge",
+        "all plans"
     );
 };
 

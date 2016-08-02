@@ -1,8 +1,8 @@
 "use strict";
 
-var logger = require("log4js").getLogger("itemsBuilder"),
+var logger = require("log4js")
+                .getLogger("itemsBuilder"),
     VError = require("verror"),
-    // _ = require("lodash"),
     moment = require("moment"),
     PLANS = require("./importer.js").Importer.PLANS;
 
@@ -11,9 +11,9 @@ require("moment-range");
 var ItemsBuilder = function() {};
 
 ItemsBuilder.RATE_TO_PLANS = {
-    ANNUALFEE: PLANS.PRO_ANNUALLY,
-    MONTHLYFEE: PLANS.PRO_MONTHLY,
-    QUARTERLYFEE: PLANS.PRO_QUARTERLY
+    ANNUALFEE: PLANS.GENERIC_ANNUALLY,
+    MONTHLYFEE: PLANS.GENERIC_MONTHLY,
+    QUARTERLYFEE: PLANS.GENERIC_QUARTERLY
 };
 
 //TODO: move into separate file or configuration
@@ -65,7 +65,7 @@ ItemsBuilder.processItems = function(
 
     var discountMap = context.discountMap,
         adjustmentMap = context.adjustmentMap,
-        planUuids = context.planUuids;
+        plans = context.plans;
 
     logger.trace(items.map(i=>i.InvoiceItem.ChargeName));
 
@@ -175,12 +175,21 @@ ItemsBuilder.processItems = function(
             amount = Math.round(amount * 100);
             discount = Math.round(discount * -100);
 
+            var plan = plans[item.ProductRatePlan.Id];
+            if (!plan) {
+                plan = plans[ItemsBuilder.RATE_TO_PLANS[item.InvoiceItem.AccountingCode]];
+                logger.warn("There are items with deleted subscription on this invoice! %s", item.Invoice.InvoiceNumber);
+            }
+            if (!plan) {
+                logger.error(item);
+                throw new VError("Couldn't find UUID for plan");
+            }
             // compile line item for chartmogul
             return {
                 type: "subscription",
                 // for deleted subscriptions we can't get the right number
                 subscription_external_id: item.Subscription.Name || item.Subscription.Id,
-                plan_uuid: planUuids[ItemsBuilder.RATE_TO_PLANS[item.InvoiceItem.AccountingCode]],
+                plan_uuid: plan,
                 service_period_start: start,
                 service_period_end: end,
                 amount_in_cents: amount, // in cents

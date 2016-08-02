@@ -188,7 +188,7 @@ InvoiceBuilder.addPayments = function(zuoraPayments, invoice, type) {
     return Math.round(total);
 };
 
-InvoiceBuilder.addInvoiceItems = function(invoiceItems, invoice, adjustments, invoiceAdjustments, creditAdjustments, planUuids) {
+InvoiceBuilder.addInvoiceItems = function(invoiceItems, invoice, adjustments, invoiceAdjustments, creditAdjustments, plans) {
 
     // logger.trace("adjustments", adjustments);
     // logger.trace("invoiceAdjustments", invoiceAdjustments);
@@ -204,7 +204,7 @@ InvoiceBuilder.addInvoiceItems = function(invoiceItems, invoice, adjustments, in
         invoiceAdjustmentAmount,
         discountMap,
         adjustmentMap,
-        planUuids);
+        plans);
 
     logger.trace("adjustmentMap", adjustmentMap);
     InvoiceBuilder.testTotalOfInvoiceEqualsTotalOfLineItems( // runtime sanity check
@@ -254,7 +254,7 @@ InvoiceBuilder.cancelLongDueInvoices = function (firstItem, positiveItems) {
 
 InvoiceBuilder.itemsForInvoice = function(invoiceItems,
     invoiceAdjustmentAmount,
-    discountMap, adjustmentMap, planUuids) {
+    discountMap, adjustmentMap, plans) {
 
     var charged = [],
         usersProration = [],
@@ -306,7 +306,7 @@ InvoiceBuilder.itemsForInvoice = function(invoiceItems,
         proratedUsersCredit, proratedStorageCredit,
         {discountMap,
             adjustmentMap,
-            planUuids,
+            plans,
             invoiceAdjustmentAmount
         });
 };

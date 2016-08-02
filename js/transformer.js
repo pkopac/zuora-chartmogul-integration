@@ -38,6 +38,7 @@ Transformer.prototype.reloadAll = function () {
         this.loader.getAllInvoiceItems(),
         // not executed if includeFree !== true
         this.includeFree && this.loader.getAllCustomers(),
+        this.loader.getAllPlans(),
         this.loader.getAllInvoicePayments(),
         this.loader.getAllRefundInvoicePayments(),
         this.loader.getAllInvoiceItemAdjustments(),
@@ -48,7 +49,7 @@ Transformer.prototype.reloadAll = function () {
 };
 
 Transformer.prototype.groupInsertPlansAndCustomers = function (
-    invoices, customers, payments, refunds, itemAdjs, invoiceAdjs, creditAdjs, dsUuid) {
+    invoices, customers, plans, payments, refunds, itemAdjs, invoiceAdjs, creditAdjs, dsUuid) {
 
     logger.info("Processing data...");
 
@@ -60,7 +61,7 @@ Transformer.prototype.groupInsertPlansAndCustomers = function (
                             // exclude adjustments to excluded invoices
                            .filter(a => !self.excludeInvoices || !self.excludeInvoices.has(a.Invoice.InvoiceNumber));
 
-    return Q.all([self.importer.insertPlans()
+    return Q.all([self.importer.insertPlans(this.transformPlans(plans))
                     .then(self.extIds2Uuids),
                   self.importCustomers(this.includeFree ? customers : itemsByAccount)
                     .then(self.extIds2Uuids),
@@ -78,6 +79,50 @@ Transformer.prototype.groupInsertPlansAndCustomers = function (
                   _.groupBy(creditAdjs.filter(a => a.Refund.RefundNumber !== "" && a.Invoice.InvoiceNumber === ""),
                             p => p.Account.SamepageId__c || p.Account.AccountNumber)
               ]);
+};
+
+/**
+ * ProductRatePlanCharge joined to ProductRatePlan.
+ * If there is a plan that has multiple billing periods, this is not going to work.
+ */
+Transformer.prototype.transformPlans = function(plans) {
+    var checkMap = {};
+    return plans.filter(p => p.ProductRatePlan.Type__c !== "FREE")
+        .filter(p => p.ProductRatePlanCharge.BillingPeriod)
+        .map(p => {
+            var count, unit, externalId = p.ProductRatePlan.Id,
+                billing = p.ProductRatePlanCharge.BillingPeriod;
+
+            switch (billing) {
+            case "Month":
+                count = 1, unit = "month";
+                break;
+            case "Annual":
+                count = 1, unit = "year";
+                break;
+            case "Quarter":
+                count = 3, unit = "month";
+                break;
+            default:
+                logger.error(p);
+                throw new VError("Unknown plan billing period!");
+            }
+
+            if (checkMap[externalId]) {
+                if (billing !== checkMap[externalId]) {
+                    logger.error(p);
+                    throw new VError("One plan has multiple billing periods! " + checkMap[externalId] + " and " + billing);
+                }
+                return; // skip duplicate
+            } else {
+                checkMap[externalId] = billing;
+            }
+
+            return {name: p.ProductRatePlan.Name,
+                    externalId,
+                    count,
+                    unit};
+        }).filter(Boolean);
 };
 
 Transformer.prototype.getCustomerUuid = function(customersById, accountId) {

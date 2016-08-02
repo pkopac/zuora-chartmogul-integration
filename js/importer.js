@@ -29,10 +29,11 @@ var Importer = function () {
 const CHARTMOGUL_DELAY = 10000,
     MAX_PARALLEL_CUSTOMERS_REQUESTS = 1000;
 
+/* Only for deleted subscriptions */
 Importer.PLANS = {
-    PRO_ANNUALLY: "Pro Annually",
-    PRO_MONTHLY: "Pro Monthly",
-    PRO_QUARTERLY: "Pro Quarterly"
+    GENERIC_ANNUALLY: "Generic Annually",
+    GENERIC_MONTHLY: "Generic Monthly",
+    GENERIC_QUARTERLY: "Generic Quarterly"
 };
 
 Importer.prototype.configure = function (json) {
@@ -125,10 +126,6 @@ Importer.prototype.getOrCreateDataSource = function (name) {
         });
 };
 
-Importer.prototype._insertPlan = function(dataSourceUuid, plan, amout, period) {
-    return cm.import.importPlan(dataSourceUuid, plan, amout, period, plan);
-};
-
 /**
  * Handles allSettled result - failover for existing customers/plans
  */
@@ -162,15 +159,18 @@ function listHandler(error, fc, skip) {
     };
 }
 
-Importer.prototype.insertPlans = function () {
-    return Q.allSettled(
-        [this._insertPlan(this.dataSource, Importer.PLANS.PRO_ANNUALLY, 1, "year"),
-          this._insertPlan(this.dataSource, Importer.PLANS.PRO_MONTHLY, 1, "month"),
-          this._insertPlan(this.dataSource, Importer.PLANS.PRO_QUARTERLY, 3, "month")])
-      .then(listHandler(
-          cm.import.PLAN_EXISTS_ERROR,
-          cm.import.listAllPlans.bind(null, this.dataSource),
-          this.skip));
+Importer.prototype.insertPlans = function (plans) {
+    return Q.allSettled(plans.map(
+        p => cm.import.importPlan(this.dataSource, p.name, p.count, p.unit, p.externalId))
+            /* These plans are necessary due to invoices with deleted subscriptions */
+        .concat([cm.import.importPlan(this.dataSource, Importer.PLANS.GENERIC_ANNUALLY, 1, "year", Importer.PLANS.GENERIC_ANNUALLY),
+          cm.import.importPlan(this.dataSource, Importer.PLANS.GENERIC_MONTHLY, 1, "month", Importer.PLANS.GENERIC_MONTHLY),
+          cm.import.importPlan(this.dataSource, Importer.PLANS.GENERIC_QUARTERLY, 3, "month", Importer.PLANS.GENERIC_QUARTERLY)
+      ])
+    ).then(listHandler(
+      cm.import.PLAN_EXISTS_ERROR,
+      cm.import.listAllPlans.bind(null, this.dataSource),
+      this.skip));
 };
 
 Importer.prototype.insertCustomers = function(customers) {
