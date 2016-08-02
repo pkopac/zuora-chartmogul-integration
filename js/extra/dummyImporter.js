@@ -9,9 +9,9 @@ var Importer = function () {
 };
 
 Importer.PLANS = {
-    PRO_ANNUALLY: "Pro Annually",
-    PRO_MONTHLY: "Pro Monthly",
-    PRO_QUARTERLY: "Pro Quarterly"
+    GENERIC_ANNUALLY: "Generic Annually",
+    GENERIC_MONTHLY: "Generic Monthly",
+    GENERIC_QUARTERLY: "Generic Quarterly"
 };
 
 Importer.prototype.configure = function () {
@@ -44,14 +44,18 @@ Importer.prototype.getOrCreateDataSource = function (name) {
     return "fake_datasource_uuid_" + name;
 };
 
-Importer.prototype._insertPlan = function(dataSourceUuid, plan) {
-    return {uuid: "fake_plan_uuid_" + plan, external_id: plan};
+Importer.prototype._insertPlan = function(dataSourceUuid, name, p, u, id) {
+    return {uuid: "fake_plan_uuid_" + name, external_id: id};
 };
 
-Importer.prototype.insertPlans = function () {
-    return Q.all([this._insertPlan(this.dataSource, Importer.PLANS.PRO_ANNUALLY, 1, "year"),
-                  this._insertPlan(this.dataSource, Importer.PLANS.PRO_MONTHLY, 1, "month"),
-                  this._insertPlan(this.dataSource, Importer.PLANS.PRO_QUARTERLY, 3, "month")]);
+Importer.prototype.insertPlans = function (plans) {
+    return Q.all(plans.map(
+        p => this._insertPlan(this.dataSource, p.name, p.count, p.unit, p.externalId))
+            /* These plans are necessary due to invoices with deleted subscriptions */
+        .concat([this._insertPlan(this.dataSource, Importer.PLANS.GENERIC_ANNUALLY, 1, "year", Importer.PLANS.GENERIC_ANNUALLY),
+          this._insertPlan(this.dataSource, Importer.PLANS.GENERIC_MONTHLY, 1, "month", Importer.PLANS.GENERIC_MONTHLY),
+          this._insertPlan(this.dataSource, Importer.PLANS.GENERIC_QUARTERLY, 3, "month", Importer.PLANS.GENERIC_QUARTERLY)
+      ]));
 };
 
 Importer.prototype.insertCustomers = function(array) {
