@@ -87,7 +87,7 @@ Transformer.prototype.groupInsertPlansAndCustomers = function (
  */
 Transformer.prototype.transformPlans = function(plans) {
     var checkMap = {};
-    return plans.filter(p => p.ProductRatePlan.Type__c !== "FREE")
+    return plans
         .filter(p => p.ProductRatePlanCharge.BillingPeriod)
         .map(p => {
             var count, unit, externalId = p.ProductRatePlan.Id,

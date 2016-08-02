@@ -53,7 +53,7 @@ Loader.prototype.getAllCustomers = function() {
 Loader.prototype.getAllPlans = function() {
     return this.aqua.zoqlRequest(
         "select " +
-        "ProductRatePlan.Id,ProductRatePlan.Name,ProductRatePlan.Type__c," +
+        "ProductRatePlan.Id,ProductRatePlan.Name," +
         "AccountingCode,BillingPeriod" +
         " from ProductRatePlanCharge",
         "all plans"
