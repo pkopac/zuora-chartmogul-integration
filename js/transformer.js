@@ -157,6 +157,11 @@ Transformer.prototype.makeInvoices = function(
     return Q.all(Object.keys(itemsByAccount)
         .map(function (accountId) {
             var invoices = _.groupBy(itemsByAccount[accountId], i => i.Invoice.InvoiceNumber);
+            // remove items with deleted subscriptions
+            Object.keys(invoices)
+                .filter(invoNumber => invoices[invoNumber]
+                    .every(item => !item.Subscription.Id))
+                .forEach(invoNumber => delete invoices[invoNumber]);
 
             var customerUuid = self.getCustomerUuid(customersById, accountId);
 
@@ -271,7 +276,7 @@ Transformer.prototype.filterAndGroupItems = function (invoiceItems) {
     var self = this;
     var itemsByAccountId = _.groupBy(invoiceItems
                 .map(i => {
-                    if (!i.Invoice) {
+                    if (!i.Invoice || !i.Subscription) {
                         logger.error("This item doesn't have expected data!", i);
                         throw new VError("Missing data from Zuora!");
                     }
