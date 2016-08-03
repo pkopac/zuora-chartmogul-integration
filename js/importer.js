@@ -252,7 +252,20 @@ Importer.prototype.insertInvoices = function(customerUuid, invoicesToImport) {
     var self = this;
     return cm.import.importInvoices(customerUuid, invoicesToImport)
         .catch((err) => {
-            if (self.skip && err.statusCode === 422) {
+            // all of the problems here are that it already exists
+            if (self.skip && // so if allowed, we skip these
+                err.statusCode === 422 &&
+                err.error &&
+                err.error.invoices &&
+                err.error.invoices
+                    .every(i => Object.keys(i.errors)
+                        .every(field => i.errors[field]
+                            .startsWith("The external ID for this") ||
+                            i.errors[field]
+                                .startsWith("has already been taken")
+                            )
+                        )
+            ) {
                 return Q();
             } else {
                 throw err;
