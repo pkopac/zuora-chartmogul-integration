@@ -32,7 +32,7 @@ Transformer.prototype.run = function () {
 };
 
 Transformer.prototype.reloadAll = function () {
-    logger.info("Exporting data from Zuora...");
+    logger.info("Importing data from Zuora...");
 
     return Q.all([
         this.loader.getAllInvoiceItems(),
@@ -367,7 +367,6 @@ Transformer.prototype.shiftDates = function(invoices) {
 
     invoices.forEach(inv => { // invoices must be sorted by issue time = external_id!
         inv.line_items.forEach(i => {
-            i.service_period_end = moment.utc(i.service_period_end).endOf("day");
             shifter(i, "service_period_start");
             shifter(i, "cancelled_at");
         });

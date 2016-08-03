@@ -100,13 +100,6 @@ ItemsBuilder.processItems = function(
             while (index >= 0) {
                 let credit = credits[index];
 
-                //HACK: service intersection must be at least 1 day
-                let creditStart = moment.utc(credit.InvoiceItem.ServiceStartDate),
-                    creditEnd = moment.utc(credit.InvoiceItem.ServiceEndDate);
-                if (creditStart.isSame(creditEnd)) { //change source data, but just once
-                    credit.InvoiceItem.ServiceEndDate = moment.utc(end).add(1, "day").toDate().getTime();
-                }
-
                 if (credit.Subscription.Name !== item.Subscription.Name || // different subscription
                     credit.InvoiceItem.Quantity === item.InvoiceItem.Quantity || // would result in 0 change
                     !ItemsBuilder.serviceIntersection(credit, item) || // non-intersecting
@@ -262,7 +255,7 @@ ItemsBuilder.rangeIntersection = function(aStart, aEnd, bStart, bEnd) {
         intersection = rangeA.intersect(rangeB);
 
     if (intersection) {
-        return intersection.diff("days");
+        return intersection.diff("seconds");
     } else {
         return 0;
     }

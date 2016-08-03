@@ -264,6 +264,7 @@ InvoiceBuilder.itemsForInvoice = function(invoiceItems,
     invoiceItems
     .filter(item => item.InvoiceItem.ChargeAmount) // ignore 0 charges
     .forEach(function(item) {
+        item.InvoiceItem.ServiceEndDate = moment.utc(item.InvoiceItem.ServiceEndDate).endOf("day").toDate();
         var name = item.InvoiceItem.ChargeName;
         if (name in ItemsBuilder.USERS_ITEMS || name in ItemsBuilder.PERSONAL) {
             // because negative charges are really wrongly-invoiced credits
