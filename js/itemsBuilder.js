@@ -85,14 +85,9 @@ ItemsBuilder.processItems = function(
 
             // the storage is for free usually...
             //TODO: how to include storage? it's different kind of quantity, so it would screw the stats
-
-            //HACK: Chartmogul doesn't allow start == end, also service intersection must be at least 1 day
+            //TODO: one time charges
             var start = moment.utc(item.InvoiceItem.ServiceStartDate),
                 end = moment.utc(item.InvoiceItem.ServiceEndDate);
-            if (start.isSame(end)) {
-                end = moment.utc(end).add(1, "day").toDate().getTime();
-                item.InvoiceItem.ServiceEndDate = end;
-            }
 
             //TODO: refactor sections out into functions
             /* Use proration credits */

@@ -352,27 +352,24 @@ Transformer.prototype.filterAndGroupItems = function (invoiceItems) {
 Transformer.prototype.shiftDates = function(invoices) {
     // cache of dates for one account's invoices
     var seenDates = {};
-    invoices.forEach(inv => { // invoices must be sorted by issue time = external_id!
-        inv.line_items.forEach(i => {
 
-            var start = moment.utc(i.service_period_start),
-                str = start.toISOString();
-            if (seenDates[str]) { // every next change of period is shifted by one second.
-                i.service_period_start = start.add(seenDates[str]++, "second").toDate();
+    function shifter(i, field) {
+        if (i[field]) {
+            var date = moment.utc(i[field]),
+                str = date.toISOString();
+            if (seenDates[str]) {
+                i[field] = moment.utc(date).add(seenDates[str]++, "second").toDate();
             } else {
                 seenDates[str] = 1;
             }
+        }
+    }
 
-            if (i.cancelled_at) {
-                var cancel = moment.utc(i.cancelled_at);
-                str = start.toISOString();
-                if (seenDates[str]) {
-                    i.cancelled_at = moment.utc(cancel).add(seenDates[str]++, "second").toDate();
-                } else {
-                    seenDates[str] = 1;
-                }
-            }
-            // note: there's no special handling of end of periods
+    invoices.forEach(inv => { // invoices must be sorted by issue time = external_id!
+        inv.line_items.forEach(i => {
+            i.service_period_end = moment.utc(i.service_period_end).endOf("day");
+            shifter(i, "service_period_start");
+            shifter(i, "cancelled_at");
         });
     });
     return invoices;
