@@ -30,14 +30,15 @@ function printHelpAndExit() {
     console.error("  -i, --interactive             Run interactive ZOQL console.");
     console.error("  -o <file>, --output <file>    Path to dump data (use with -q or -m).");
     console.error("  -q <query>, --query <query>   Run query (use with -o).");
+    console.error("  -t <type>, --type <type>      Type of export [activities | subscriptions ] (use with -e).");
     console.error("  -u, --update                  Ignore 'existing' errors while importing to Chartmogul.");
     process.exit(1);
 }
 
 function processArgs() {
     argv = minimist(process.argv.slice(2),
-    { string: ["config", "query", "output", "export"],
-      boolean: ["interactive", "help", "dry", "update"],
+    { string: ["config", "export", "output", "query", "type"],
+      boolean: ["dry", "help", "interactive", "update"],
       alias: {
           config: "c",
           dry: "d",
@@ -46,14 +47,17 @@ function processArgs() {
           interactive: "i",
           output: "o",
           query: "q",
+          type: "t",
           update: "u"
       },
       "default": {
           config: DEFAULT_CONFIG_PATH,
+          export: null,
           interactive: false,
-          export: null
+          type: "activities"
       }
     });
+
     if (argv.help) {
         printHelpAndExit();
     }
@@ -124,7 +128,7 @@ function runTransformation(configuration, dry, update) {
         .done();
 }
 
-function runActivitiesExport(configuration, exportType, outputFile) {
+function runExport(configuration, fileType, outputFile, exportType) {
     var Exporter = require("./extra/exporter.js").Exporter,
         exporter = new Exporter().configure(configuration.chartmogul);
 
@@ -132,7 +136,8 @@ function runActivitiesExport(configuration, exportType, outputFile) {
     if (configuration && configuration.transformer && configuration.transformer.dataSource) {
         dataSource = configuration.transformer.dataSource;
     }
-    exporter.run(dataSource, exportType, outputFile)
+    logger.info("Export of %s to run now...", exportType);
+    exporter["run_" + exportType](dataSource, fileType, outputFile)
         .done();
 }
 
@@ -151,7 +156,7 @@ function runActivitiesExport(configuration, exportType, outputFile) {
     } else if (argv.query) {
         runQuery(configuration, argv.query, argv.output);
     } else if (argv.export) {
-        runActivitiesExport(configuration, argv.export, argv.output);
+        runExport(configuration, argv.export, argv.output, argv.type);
     } else {
         runTransformation(configuration, argv.dry, argv.update);
     }
