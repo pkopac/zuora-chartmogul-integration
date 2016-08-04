@@ -41,7 +41,16 @@ ZuoraAqua.prototype.retrieveFile = function(fileId) {
         uri: self.fileUri + fileId,
         json: true,
         auth: self.auth})
-    .then((buffer) => Q.ninvoke(new Converter({}), "fromString", buffer.toString()));
+    .then((buffer) => Q.ninvoke(new Converter({}), "fromString", buffer.toString()))
+    .catch(err => {
+        // logger.debug("retrieveFile", err);
+        if (err.message === "Error: socket hang up") {
+            logger.warn("Socket hang up, trying again, retrieveFile");
+            return self.retrieveFile(fileId); // try again recursively
+        } else {
+            throw err;
+        }
+    });
 };
 
 ZuoraAqua.prototype.pollUntilReady = function(response){
@@ -75,6 +84,14 @@ ZuoraAqua.prototype.pollUntilReady = function(response){
                 clearInterval(intervalId);
                 deferred.reject(job);
             } //pending/executing
+        })
+        .catch(err => {
+            // logger.debug("pollUntilReady",err);
+            if (err.message === "Error: socket hang up") {
+                logger.warn("Socket hang up, trying again, pollUntilReady");
+            } else {
+                throw err;
+            }
         });
     }, ZUORA_POLLING);
 
@@ -100,7 +117,17 @@ ZuoraAqua.prototype.zoqlRequest = function(query, name) {
         json: true,
         auth: this.auth
     }))
+    .catch(err => {
+        // logger.debug("zoqlRequest",err);
+        if (err.message === "Error: socket hang up") {
+            logger.warn("Socket hang up, trying again, zoqlRequest");
+            return self.zoqlRequest(query, name); // try again recursively
+        } else {
+            throw err;
+        }
+    })
     .then(res => self.pollUntilReady(res));
+
 };
 
 exports.ZuoraAqua = ZuoraAqua;
