@@ -41,7 +41,6 @@ ZuoraAqua.prototype.retrieveFile = function(fileId) {
         uri: self.fileUri + fileId,
         json: true,
         auth: self.auth})
-    .then((buffer) => Q.ninvoke(new Converter({}), "fromString", buffer.toString()))
     .catch(err => {
         // logger.debug("retrieveFile", err);
         if (err.message === "Error: socket hang up") {
@@ -100,7 +99,7 @@ ZuoraAqua.prototype.pollUntilReady = function(response){
 
 ZuoraAqua.prototype.zoqlRequest = function(query, name) {
     var self = this;
-    return Q(request({
+    return request({
         method: "POST",
         uri: this.batchUri,
         body: {
@@ -116,7 +115,7 @@ ZuoraAqua.prototype.zoqlRequest = function(query, name) {
         },
         json: true,
         auth: this.auth
-    }))
+    })
     .catch(err => {
         // logger.debug("zoqlRequest",err);
         if (err.message === "Error: socket hang up") {
@@ -126,8 +125,13 @@ ZuoraAqua.prototype.zoqlRequest = function(query, name) {
             throw err;
         }
     })
-    .then(res => self.pollUntilReady(res));
-
+    .then(res => self.pollUntilReady(res))
+     // Parsing needs to know headers in advance, because some lines might have empty columns.
+    .then(buffer => Q.ninvoke(
+        new Converter({headers: query.match(/select (.*) from.*/)[1].split(",")}),
+        "fromString",
+        buffer.toString())
+    );
 };
 
 exports.ZuoraAqua = ZuoraAqua;

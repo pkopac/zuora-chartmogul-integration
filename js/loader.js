@@ -24,8 +24,10 @@ Loader.prototype.configure = function(json) {
 Loader.prototype.getAllInvoiceItems = function() {
     return this.aqua.zoqlRequest(
         "select "+
-        "AccountingCode,AppliedToInvoiceItemId,ChargeAmount,ChargeName,Id,"+
-        "Quantity,ServiceEndDate,ServiceStartDate,SubscriptionId,TaxAmount,UOM,UnitPrice,"+
+        "InvoiceItem.AccountingCode,InvoiceItem.AppliedToInvoiceItemId,InvoiceItem.ChargeAmount,"+
+        "InvoiceItem.ChargeName,InvoiceItem.Id,InvoiceItem.Quantity,InvoiceItem.ServiceEndDate,"+
+        "InvoiceItem.ServiceStartDate,InvoiceItem.SubscriptionId,InvoiceItem.TaxAmount,"+
+        "InvoiceItem.UOM,InvoiceItem.UnitPrice,"+
         "Amendment.Type,"+
         "Account.Currency,Account.Name,Account.AccountNumber,Account.SamepageId__c,Account.Status,"+
         "BillToContact.City,BillToContact.Country,BillToContact.PostalCode,BillToContact.State,"+
@@ -54,7 +56,7 @@ Loader.prototype.getAllPlans = function() {
     return this.aqua.zoqlRequest(
         "select " +
         "ProductRatePlan.Id,ProductRatePlan.Name," +
-        "AccountingCode,BillingPeriod" +
+        "ProductRatePlanCharge.AccountingCode,ProductRatePlanCharge.BillingPeriod" +
         " from ProductRatePlanCharge",
         "all plans"
     );
@@ -77,7 +79,7 @@ Loader.prototype.getAllInvoicePayments = function() {
 Loader.prototype.getAllRefundInvoicePayments = function() {
     return this.aqua.zoqlRequest(
         "select " +
-        "RefundAmount," +
+        "RefundInvoicePayment.RefundAmount," +
         "Invoice.InvoiceNumber," +
         "Refund.Amount,Refund.Id,Refund.RefundDate,Refund.RefundNumber,Refund.Status" +
         " from RefundInvoicePayment",
@@ -89,7 +91,7 @@ Loader.prototype.getAllRefundInvoicePayments = function() {
 Loader.prototype.getAllInvoiceItemAdjustments = function() {
     return this.aqua.zoqlRequest(
         "select "+
-        "Amount,Status,Type,"+
+        "InvoiceItemAdjustment.Amount,InvoiceItemAdjustment.Status,InvoiceItemAdjustment.Type,"+
         "Invoice.InvoiceNumber,InvoiceItem.Id"+
         " from InvoiceItemAdjustment",
 
@@ -100,7 +102,7 @@ Loader.prototype.getAllInvoiceItemAdjustments = function() {
 Loader.prototype.getAllInvoiceAdjustments = function() {
     return this.aqua.zoqlRequest(
         "select "+
-        "Amount,Id,Status,Type,"+
+        "InvoiceAdjustment.Amount,InvoiceAdjustment.Id,InvoiceAdjustment.Status,InvoiceAdjustment.Type,"+
         "Invoice.InvoiceNumber"+
         " from InvoiceAdjustment",
 
@@ -115,7 +117,9 @@ Loader.prototype.getAllInvoiceAdjustments = function() {
 Loader.prototype.getAllCreditBalanceAdjustments = function() {
     return this.aqua.zoqlRequest(
         "select "+
-        "AccountingCode,Amount,CreatedDate,Id,ReasonCode,SourceTransactionType,Status,Type,"+
+        "CreditBalanceAdjustment.AccountingCode,CreditBalanceAdjustment.Amount,CreditBalanceAdjustment.CreatedDate,"+
+        "CreditBalanceAdjustment.Id,CreditBalanceAdjustment.ReasonCode,CreditBalanceAdjustment.SourceTransactionType,"+
+        "CreditBalanceAdjustment.Status,CreditBalanceAdjustment.Type,"+
         "Account.SamepageId__c,Account.AccountNumber,"+
         "Invoice.InvoiceNumber,"+
         "Payment.Amount,Payment.Id,Payment.PaymentNumber,"+
