@@ -23,15 +23,17 @@ var argv;
 
 function printHelpAndExit() {
     console.error("Integrate Zuora and ChartMogul.");
-    console.error("  -c <file>, --config <file>    Path to config.json.");
-    console.error("  -d, --dry                     Dry run doesn't interact with Chartmogul.");
-    console.error("  -e <output type>, --export <> Download MRR activity data from Chartmogul. Output: [csv | ...]");
-    console.error("  -h, --help                    Show this help message.");
-    console.error("  -i, --interactive             Run interactive ZOQL console.");
-    console.error("  -o <file>, --output <file>    Path to dump data (use with -q or -m).");
-    console.error("  -q <query>, --query <query>   Run query (use with -o).");
-    console.error("  -t <type>, --type <type>      Type of export [activities | subscriptions ] (use with -e).");
-    console.error("  -u, --update                  Ignore 'existing' errors while importing to Chartmogul.");
+    console.error("  -c <file>, --config <file>            Path to config.json.");
+    console.error("  -d, --dry                             Dry run doesn't interact with Chartmogul.");
+    console.error("  -e <output type>, --export <>         Download MRR activity data from Chartmogul. Output: [csv | json ...]");
+    console.error("  -h, --help                            Show this help message.");
+    console.error("  -i, --interactive                     Run interactive ZOQL console.");
+    console.error("  -o <file>, --output <file>            Path to dump data (use with -q or -m).");
+    console.error("  -q <query>, --query <query>           Run query (use with -o).");
+    console.error("  -t <type>, --type <type>              Type of export [activities | subscriptions | mrr ] (use with -e).");
+    console.error("  -p '{\"start-date\": \"YYYY-MM-DD\"}'     Parameters for export as JSON.");
+    console.error("    --params {}  ");
+    console.error("  -u, --update                          Ignore 'existing' errors while importing to Chartmogul.");
     process.exit(1);
 }
 
@@ -46,6 +48,7 @@ function processArgs() {
           help: "h",
           interactive: "i",
           output: "o",
+          params: "p",
           query: "q",
           type: "t",
           update: "u"
@@ -54,6 +57,7 @@ function processArgs() {
           config: DEFAULT_CONFIG_PATH,
           export: null,
           interactive: false,
+          params: "{}",
           type: "activities"
       }
     });
@@ -128,7 +132,7 @@ function runTransformation(configuration, dry, update) {
         .done();
 }
 
-function runExport(configuration, fileType, outputFile, exportType) {
+function runExport(configuration, fileType, outputFile, exportType, params) {
     var Exporter = require("./extra/exporter.js").Exporter,
         exporter = new Exporter().configure(configuration.chartmogul);
 
@@ -137,7 +141,7 @@ function runExport(configuration, fileType, outputFile, exportType) {
         dataSource = configuration.transformer.dataSource;
     }
     logger.info("Export of %s to run now...", exportType);
-    exporter["run_" + exportType](dataSource, fileType, outputFile)
+    exporter["run_" + exportType](dataSource, fileType, outputFile, params)
         .done();
 }
 
@@ -156,7 +160,7 @@ function runExport(configuration, fileType, outputFile, exportType) {
     } else if (argv.query) {
         runQuery(configuration, argv.query, argv.output);
     } else if (argv.export) {
-        runExport(configuration, argv.export, argv.output, argv.type);
+        runExport(configuration, argv.export, argv.output, argv.type, JSON.parse(argv.params));
     } else {
         runTransformation(configuration, argv.dry, argv.update);
     }

@@ -9,7 +9,7 @@ var cm = require("chartmoguljs"),
     logger = require("log4js").getLogger("exporter");
 
 var Exporter = function() {
-    this.SUPPORTED_TYPES = {csv: 1};
+    this.SUPPORTED_TYPES = {csv: 1, json: 1};
 };
 
 Exporter.prototype.configure = function (json) {
@@ -17,6 +17,17 @@ Exporter.prototype.configure = function (json) {
     cm.config(json);
     return this;
 };
+
+
+function transform(exportType) {
+    return (data) =>  {
+        if (exportType === "csv") {
+            return json2csv({data});
+        } else if (exportType === "json") {
+            return JSON.stringify(data, null, 2);
+        }
+    };
+}
 
 function fetchAllTheMetrics(dataSource, exportType, outputFile, action) {
     var customerExternalIds;
@@ -38,8 +49,8 @@ function fetchAllTheMetrics(dataSource, exportType, outputFile, action) {
             }
             return _.flatten(metrics);
         })
-        .then(activities => json2csv({ data: activities}))
-        .then(csvString => Q.ninvoke(fs, "writeFile", outputFile, csvString));
+        .then(transform(exportType))
+        .then(csv => Q.ninvoke(fs, "writeFile", outputFile, csv));
 }
 
 Exporter.prototype.run_subscriptions = function (dataSource, exportType, outputFile) {
@@ -56,6 +67,25 @@ Exporter.prototype.run_activities = function (dataSource, exportType, outputFile
     }
 
     return fetchAllTheMetrics(dataSource, exportType, outputFile, "listAllActivities");
+};
+
+function check(params, field) {
+    if (!params[field]) {
+        throw new Error("Please add param " + field);
+    }
+}
+
+Exporter.prototype.run_mrr = function (dataSource, exportType, outputFile, params) {
+    check(params, "end-date");
+    check(params, "start-date");
+    if (! (exportType in this.SUPPORTED_TYPES)) {
+        throw new Error("Unsupported type: " + exportType + " Supported types: " + Object.keys(this.SUPPORTED_TYPES));
+    }
+
+    return cm.metrics.retrieveMRR(params["start-date"], params["end-date"], "day")
+        .then(transform(exportType))
+        .then(csv => Q.ninvoke(fs, "writeFile", outputFile, csv));
+
 };
 
 exports.Exporter = Exporter;
