@@ -1,12 +1,23 @@
 "use strict";
 
 var logger = require("log4js").getLogger("cancellation"),
-    // Splitter = require("./splitter.js").Splitter,
     VError = require("verror"),
     _ = require("lodash"),
     moment = require("moment");
 
 var Cancellation = {}; // only static methods, not state
+
+/*
+ 1) Invoice with prorated credit -amount and no replacement (is different to +10 -11 for example)
+    a) invoice has just one term
+       -> find previous invoice with term containing the start of service refund item -> add cancel date
+    b) invoice has multiple terms
+       -> find the first invoice, cancel it, remove the following up to what was canceled
+    c) invoice has multiple subscriptions and multiple terms
+       -> solve on per-subscription basis
+    d) invoice has one item, but it cancels multiple items in the past
+
+*/
 
 /**
  * If invoice only removed relevant products, it means it very probably
@@ -16,26 +27,32 @@ var Cancellation = {}; // only static methods, not state
  * we have to omit the downgrage and cancel the previous invoice with item matching the subscription.
  */
 Cancellation.cancelInvoices = function(invoices) {
+    var cancellationInvoices = [];
     for (var i = 0; i < invoices.length; i++) {
-        var invoice = invoices[i];
+        var invoice = invoices[i],
+            isVoid = invoice.line_items.every(item => // transfer to Free
+                !item.amount_in_cents && !item.discount_amount_in_cents),
+            isRefund = invoice.line_items.every(item =>
+                item.__amendmentType === "RemoveProduct" &&
+                item.amount_in_cents < 0);
+
+        logger.trace("%s %s %s", invoice.external_id, isVoid, isRefund);
 
         /* Classification of cancelation invoices */
-        if (invoice.line_items.every(
-                item => item.__amendmentType === "RemoveProduct" &&
-                item.amount_in_cents < 0)
-            ) {
-
-            logger.trace("Cancellation invoice: " + invoice.external_id);
-
+        if (isRefund || isVoid) {
             try {
                 invoices.splice(i, 1); // throw away cancelation invoice
-                Cancellation._findAndProcessCancellations(invoice, invoices, i);
-
+                invoice.__isRefund = isRefund;
+                cancellationInvoices.push(invoice);
             } catch (err) {
                 throw new VError(err, "Couldn't process cancellation invoice " + invoice.external_id);
             }
         }
     }
+
+    // This operation possibly changes invoices array by dropping further invoices
+    cancellationInvoices.forEach(invoice =>
+        Cancellation._processCancellations(invoice, invoices));
 
     return Cancellation._removeMetadata(invoices);
 };
@@ -44,101 +61,79 @@ Cancellation.cancelInvoices = function(invoices) {
  * Here, match cancellations onto previous invoices (sorted by numbers, which increment in time).
  * If no match can be found, something is wrong. Either unexpected invoice structure or cancelling something non-existing.
  */
-Cancellation._findAndProcessCancellations = function(invoice, invoices, i) {
-    var toAdd = [];
+Cancellation._processCancellations = function(invoice, invoices) {
+    var isRefund = invoice.__isRefund,
+        bySub = _.groupBy(invoice.line_items.filter(item => !isRefund || item.amount_in_cents), "subscription_external_id");
 
-    // Only take the last cancelation per subscription to prevent UP and DOWN jumps in MRR
-    var bySub = _.groupBy(invoice.line_items.filter(item => item.amount_in_cents), "subscription_external_id");
-    var cancelationItems = Object.keys(bySub).map(sub => _.sortBy(bySub[sub], "service_period_start").reverse()[0]);
+    logger.debug("Processing %s cancellation invoice...", invoice.external_id);
 
-    for (var j = 0; j < cancelationItems.length; j++) {
-        var cancelItem = cancelationItems[j];
+    Object.keys(bySub).forEach(subscription => {
+        var items = _.sortBy(bySub[subscription], "service_period_start"),
+            canceled = false;
 
-        // find closest previous invoice by subscription ID
-        var searchedSubscription = cancelItem.subscription_external_id,
-            toProcessInvoice = null,
-            toProcessItems = null,
-            canBeSplitted = false;
+        for (var y = 0; y < items.length; y++) {
+            var cancelItem = items[y],
+                found = false;
 
-        for (var k = i - 1; k >= 0; k--) {
-            if (invoices[k].line_items.every(i => i.__processed)) {
-                continue;
-            }
-            // On one invoice, there can be multiple subscriptions canceled
-            toProcessItems = invoices[k].line_items
-                                .filter(item => item.__amendmentType !== "RemoveProduct")
-                                .filter(i => !i.__processed)
-                                .filter(item => item.subscription_external_id === searchedSubscription);
-            if (toProcessItems.length > 0) {
-                toProcessItems.forEach(i => i.__processed = true);
-                toProcessInvoice = invoices[k];
+            // Go through previous invoices
+            for (var k = 0; k < invoices.length && invoices[k].external_id < invoice.external_id; k++) {
+                var changedInvoice = invoices[k];
+                var cancellable = changedInvoice.line_items
+                    .filter(item => item.subscription_external_id === subscription)
+                    .filter(item => item.__amendmentType !== "RemoveProduct");
 
-                if (toProcessItems.length === toProcessInvoice.line_items.length) {
-                    canBeSplitted = true; // how to split invoice, but only some items? not implemented
+                logger.trace("First: %s", invoices[k].external_id, cancellable);
+                if (isRefund) { // prorated refund
+                    cancellable = cancellable.filter(i => // matching period?
+                        moment.utc(i.service_period_end) >= moment.utc(cancelItem.service_period_start) &&
+                        moment.utc(i.service_period_end) <= moment.utc(cancelItem.service_period_end)
+                    );
                 }
+                // _.sortBy(cancellable, "service_period_start");
 
-                break;
+                logger.trace("Second: %s", invoices[k].external_id, cancellable);
+                if (cancellable.length) { // we found the items to cancel
+                    var canceledItems = [];
+                    cancellable.forEach(item => {
+                        item.cancelled_at = cancelItem.service_period_start;
+                        cancelItem.amount_in_cents += item.amount_in_cents;
+                        canceledItems.push(item.external_id);
+                    });
+                    logger.trace(canceledItems);
+                    if (!canceled) {
+                        canceledItems.shift(); // shift the first item away
+                    }
+                    // remove the rest of the items, they would result in reactivation!
+                    changedInvoice.line_items = changedInvoice.line_items
+                        .filter(i => canceledItems.indexOf(i.external_id) < 0);
+
+                    // no items -> remove
+                    if (!changedInvoice.line_items.length) {
+                        invoices.splice(k, 1);
+                    }
+                    found = true;
+                    canceled = true;
+                    // void or everything refunded?
+                    if (!isRefund || cancelItem.amount_in_cents >= 0) {
+                        break;
+                    }
+                }
+            }
+
+            // We didn't cancel... or did, but not for enough amount... but that can actually happen... what's next? :(
+            if (isRefund) {
+                if (cancelItem.amount_in_cents < 0) {
+                    logger.warn("Couldn't apply all of refund, maybe wrong adjustment on invoices?"+
+                        " Invoice ID: %s Subscription: %s, missing amount: %d",
+                        invoice.external_id, subscription, cancelItem.amount_in_cents);
+                }
+                if (!found) {
+                    throw new VError("Couldn't find invoice by subscription ID " + subscription +
+                                        " to cancel with " + invoice.external_id);
+                }
             }
         }
-
-        if (!toProcessInvoice) {
-            throw new VError("Couldn't find invoice by subscription ID " + searchedSubscription +
-                                " to cancel with " + invoice.external_id);
-        }
-
-        var result = Cancellation._resolveCancellation(toProcessInvoice, toProcessItems, cancelItem, canBeSplitted);
-        if (result === true) { // process again
-            j--;
-        } else if (typeof result === "object") { // new invoice created by splitting
-            toAdd.push({k, newInvoice: result});
-        }
-    }
-
-    if (toAdd.length) { // adding after cycle, so the index doesn't get screwed
-        toAdd.forEach(a => invoices.splice(a.k, 0, a.newInvoice));
-    }
-};
-
-/**
- * This function gets the found match and tries to apply possible cancellation ways.
- */
-Cancellation._resolveCancellation = function(toProcessInvoice, toProcessItems, cancelItem) {
-    var totalThatCanBeCanceled = toProcessItems.reduce((sum, next) => sum + next.amount_in_cents, 0),
-        refundedAmount = cancelItem.amount_in_cents,
-        splitDate = cancelItem.service_period_start;
-
-    logger.debug("cancellation: totalThatCanBeCanceled %d, refundedAmount %d", totalThatCanBeCanceled, refundedAmount);
-
-    // Cancel the subscription.
-    toProcessItems.forEach(i => i.cancelled_at = splitDate);
-
-    /* Handling some edge cases. */
-    // 1) several invoices with monthly payments canceled by one invoice with a total of them
-    if (totalThatCanBeCanceled < -refundedAmount) {
-        cancelItem.amount_in_cents += totalThatCanBeCanceled;
-        return true; //process the rest in the next pass
-    }
-
-    // ISSUE: invoices can't be split while canceling, because the splitting causes the amount to be partially
-    // downgraded and partially canceled. Better if we cancel it all. Also, it's enough to put the cancel date on the last invoice.
-
-    // 2) only partially canceled & split by date. Useful, so we get the cancellation date correct.
-    // } else if (canBeSplitted &&
-    //             totalThatCanBeCanceled > -refundedAmount &&
-    //             toProcessItems.length === 1 &&
-    //             moment.utc(toProcessItems[0].service_period_start).isBefore(splitDate) &&
-    //             moment.utc(splitDate).isBefore(toProcessItems[0].service_period_end)) {
-    //
-    //     try {
-    //         var newInvoice = Splitter.splitInvoice(toProcessInvoice, -refundedAmount, splitDate);
-    //         var cancelDate = moment.utc(splitDate).add(1, "day").toDate();
-    //         toProcessInvoice.line_items.forEach(item => item.cancelled_at = cancelDate);
-    //         return newInvoice;
-    //     } catch (err) {
-    //         logger.warn("Couldn't split canceled invoice. Canceling subscription on it.");
-    //     }
-    // }
-    // note: if nothing previous matched, the previous invoice is simply canceled and that's it
+    });
 };
 
 /**

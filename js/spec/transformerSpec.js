@@ -5,7 +5,7 @@ var Importer = require("../importer.js").Importer;
 var Transformer = require("../transformer.js").Transformer;
 var diff = require("deep-diff").diff;
 
-describe("Transformer", function(){
+xdescribe("Transformer", function(){
     it("inserts one customer per account", function(){
         var loader = {},
             importer = jasmine.createSpyObj("importer", ["insertCustomer"]);

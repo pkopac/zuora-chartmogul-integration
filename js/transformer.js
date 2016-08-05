@@ -176,14 +176,19 @@ Transformer.prototype.removeNonsenseInvoices = function(invoices) {
         ))
         // invoice that has total 0 and doesn't change anything is pretty useless (and breaks CM)
         .filter(invoice => {
+
             var invoiceTotal = invoice.line_items.reduce((prev, item) => prev + item.amount_in_cents, 0),
-                ii = invoice.line_items;
-            return !(invoiceTotal === 0 &&
+                ii = invoice.line_items,
+                sane = !(invoiceTotal === 0 &&
                     (new Set(ii.map(i => i.subscription_external_id))).size === 1 &&
                     (new Set(ii.map(i => i.service_period_start))).size === 1 &&
                     (new Set(ii.map(i => i.service_period_end))).size === 1 &&
                     (new Set(ii.map(i => i.plan_uuid))).size === 1 &&
                     (new Set(ii.map(i => Math.abs(i.quantity)))).size === 1);
+            if (!sane) {
+                logger.warn("Removing nonsense invoice: " + invoice.external_id);
+            }
+            return sane;
         });
 };
 
@@ -241,12 +246,6 @@ Transformer.prototype.makeInvoices = function(
 
             logger.trace("Invoices", invoicesToImport.map(i => i.external_id));
 
-            invoicesToImport = Cancellation.cancelInvoices(invoicesToImport);
-
-            /* Any two invoices for the same term, annulling each other can be omitted.
-             * It's after canceling, because that might be better way to deal with such invoices. */
-            invoicesToImport = self.removeAnnullingInvoices(invoicesToImport);
-
             try {
                 var cbas = creditAdjsNoInvoiceByAccount[accountId] && creditAdjsNoInvoiceByAccount[accountId]
                                 // I don't know, what to do with increases...
@@ -258,6 +257,12 @@ Transformer.prototype.makeInvoices = function(
             } catch(err) {
                 throw new VError(err, "Failed to add extra-invoice refunds to account " + accountId);
             }
+
+            invoicesToImport = Cancellation.cancelInvoices(invoicesToImport);
+
+            /* Any two invoices for the same term, annulling each other can be omitted.
+             * It's after canceling, because that might be better way to deal with such invoices. */
+            invoicesToImport = self.removeAnnullingInvoices(invoicesToImport);
 
             invoicesToImport = self.removeNonsenseInvoices(invoicesToImport);
 

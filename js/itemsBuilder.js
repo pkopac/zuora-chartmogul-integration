@@ -59,6 +59,11 @@ ItemsBuilder.DISCOUNTS = {
     "Initial Fixed Discount : 1 Year": 1
 };
 
+ItemsBuilder.BLACKLIST = {
+    "Business Pro": 1,
+    "Pro": 1
+};
+
 
 ItemsBuilder.processItems = function(
     items, proratedUsersCredit, proratedStorageCredit, context) {
@@ -99,16 +104,17 @@ ItemsBuilder.processItems = function(
             var index = credits.length - 1;
             while (index >= 0) {
                 let credit = credits[index];
-
                 if (credit.Subscription.Name !== item.Subscription.Name || // different subscription
-                    credit.InvoiceItem.Quantity === item.InvoiceItem.Quantity || // would result in 0 change
+                    // credit.InvoiceItem.Quantity === item.InvoiceItem.Quantity || // would result in 0 change
                     !ItemsBuilder.serviceIntersection(credit, item) || // non-intersecting
                     credit.InvoiceItem.AccountingCode !== item.InvoiceItem.AccountingCode) { // change of plan
                     index--;
                     continue;
                 }
                 prorated = true; // amount & quantity = change/differential
-
+                if (credit.InvoiceItem.Quantity === item.InvoiceItem.Quantity) {
+                    quantity++; // HACK HACK HACK! CM doesn't accept 0 quantity;
+                }
                 // yes, really! See INV00003933, INV00004009
                 let discountOnProration = (discountMap[credit.InvoiceItem.Id] || 0) + (adjustmentMap[credit.InvoiceItem.Id] || 0);
                 //we are subtracting from amount (credit is negative)
@@ -159,9 +165,19 @@ ItemsBuilder.processItems = function(
                 // else if signs match, skip this item, it probably should go to another one
             }
 
+            // if (!prorated && !discount && amount === 0 && quantity !== 0) { // Sales put price 0, instead of discount 100 %
+            //     discount = quantity * -10;
+            //     logger.warn("Invoice for $0 -> registering as 100% discount!");
+            // }
+
             /* chartmogul number format = in cents, discount positive number */
             amount = Math.round(amount * 100);
             discount = Math.round(discount * -100);
+
+            if (item.InvoiceItem.ChargeName in ItemsBuilder.STORAGE_ITEMS &&
+                amount === 0 && discount === 0) {
+                return; //useless
+            }
 
             var plan = plans[item.ProductRatePlan.Id];
             if (!plan) {

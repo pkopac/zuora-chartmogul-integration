@@ -2,7 +2,7 @@
 
 var logger = require("log4js").getLogger("invoiceBuilder"),
     VError = require("verror"),
-    // _ = require("lodash"),
+    _ = require("lodash"),
     moment = require("moment"),
     ItemsBuilder = require("./itemsBuilder.js").ItemsBuilder,
     Invoice = require("./importer.js").Invoice;
@@ -190,10 +190,6 @@ InvoiceBuilder.addPayments = function(zuoraPayments, invoice, type) {
 
 InvoiceBuilder.addInvoiceItems = function(invoiceItems, invoice, adjustments, invoiceAdjustments, creditAdjustments, plans) {
 
-    // logger.trace("adjustments", adjustments);
-    // logger.trace("invoiceAdjustments", invoiceAdjustments);
-    // logger.trace("creditAdjustments", creditAdjustments);
-
     var processedAdjustments = InvoiceBuilder.processAdjustments(adjustments),
         adjustmentMap = processedAdjustments[0],
         itemAdjustmentAmountTotal = processedAdjustments[1],
@@ -238,16 +234,14 @@ InvoiceBuilder.testTotalOfInvoiceEqualsTotalOfLineItems = function (
  * Under normal circumstances such accounts should be dealt with by sales
  * retention process.
  */
-InvoiceBuilder.cancelLongDueInvoices = function (firstItem, positiveItems) {
-    if (firstItem.Invoice.Amount > 0 &&
-            firstItem.Invoice.Balance > 0 &&
-            moment().diff(moment.utc(firstItem.Invoice.DueDate), "month") >= InvoiceBuilder.MONTHS_UNPAID_TO_CANCEL &&
-            !positiveItems[0].cancelled_at) {
+InvoiceBuilder.cancelLongDueInvoices = function (zuoraItem, line_items) {
 
-        positiveItems.forEach(function (item) {
-            item.cancelled_at = positiveItems
-                .filter(i => i.amount_in_cents > 0)[0]
-                .service_period_start;
+    if (zuoraItem.Invoice.Amount > 0 && zuoraItem.Invoice.Balance > 0 &&
+            moment().diff(moment.utc(zuoraItem.Invoice.DueDate), "month") >= InvoiceBuilder.MONTHS_UNPAID_TO_CANCEL &&
+            !line_items[0].cancelled_at) {
+        var cancel = _.sortBy(line_items.filter(i => i.amount_in_cents >= 0), "service_period_start")[0].service_period_start;
+        line_items.forEach(function (item) {
+            item.cancelled_at = cancel;
         });
     }
 };
@@ -261,12 +255,14 @@ InvoiceBuilder.itemsForInvoice = function(invoiceItems,
         proratedUsersCredit = [],
         proratedStorageCredit = [];
 
+    //TODO: storage is commented out for now
     invoiceItems
-    .filter(item => item.InvoiceItem.ChargeAmount) // ignore 0 charges
     .forEach(function(item) {
         item.InvoiceItem.ServiceEndDate = moment.utc(item.InvoiceItem.ServiceEndDate).endOf("day").toDate();
         var name = item.InvoiceItem.ChargeName;
-        if (name in ItemsBuilder.USERS_ITEMS || name in ItemsBuilder.PERSONAL) {
+        if (name in ItemsBuilder.BLACKLIST) {
+            return; // ignore items
+        } else if (name in ItemsBuilder.USERS_ITEMS || name in ItemsBuilder.PERSONAL) {
             // because negative charges are really wrongly-invoiced credits
             // this will help detect invoices that aren't correctly marked as prorated
             if (item.InvoiceItem.ChargeAmount < 0) {
@@ -290,9 +286,13 @@ InvoiceBuilder.itemsForInvoice = function(invoiceItems,
             // although proration credit is done when removing/replacing/refunding, the relation is
             // to the original Amendment of type NewProduct, which is confusing (wouldn't be able to detect cancellation)
             item.Amendment.Type = "RemoveProduct";
-            proratedUsersCredit.push(item);
+            if (item.InvoiceItem.ChargeAmount !== 0) { // prorated credit of $0? Well, really useless...
+                proratedUsersCredit.push(item);
+            }
         } else if (name in ItemsBuilder.STORAGE_PRORATION_CREDIT) {
-            proratedStorageCredit.push(item);
+            if (item.InvoiceItem.ChargeAmount !== 0) {
+                proratedStorageCredit.push(item);
+            }
         } else if (name in ItemsBuilder.DISCOUNTS) {
             //do nothing
         } else {
