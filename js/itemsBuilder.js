@@ -8,6 +8,7 @@ var logger = require("log4js")
 
 require("moment-range");
 
+
 var ItemsBuilder = function() {};
 
 ItemsBuilder.RATE_TO_PLANS = {
@@ -94,45 +95,12 @@ ItemsBuilder.processItems = function(
             var start = moment.utc(item.InvoiceItem.ServiceStartDate),
                 end = moment.utc(item.InvoiceItem.ServiceEndDate);
 
-            //TODO: refactor sections out into functions
-            /* Use proration credits */
-            var prorated = false,
-                quantity = item.InvoiceItem.Quantity,
-                credits = (item.InvoiceItem.ChargeName in ItemsBuilder.USERS_PRORATION ||
-                           item.InvoiceItem.ChargeName in ItemsBuilder.USERS_ITEMS) ?
-                            proratedUsersCredit : proratedStorageCredit;
-            var index = credits.length - 1;
-            while (index >= 0) {
-                let credit = credits[index];
-                if (credit.Subscription.Name !== item.Subscription.Name || // different subscription
-                    // credit.InvoiceItem.Quantity === item.InvoiceItem.Quantity || // would result in 0 change
-                    !ItemsBuilder.serviceIntersection(credit, item) || // non-intersecting
-                    credit.InvoiceItem.AccountingCode !== item.InvoiceItem.AccountingCode) { // change of plan
-                    index--;
-                    continue;
-                }
-                prorated = true; // amount & quantity = change/differential
-                if (credit.InvoiceItem.Quantity === item.InvoiceItem.Quantity) {
-                    quantity++; // HACK HACK HACK! CM doesn't accept 0 quantity;
-                }
-                // yes, really! See INV00003933, INV00004009
-                let discountOnProration = (discountMap[credit.InvoiceItem.Id] || 0) + (adjustmentMap[credit.InvoiceItem.Id] || 0);
-                //we are subtracting from amount (credit is negative)
-                logger.debug("Applying credit %d with discount %d and quantity %d",
-                    credit.InvoiceItem.ChargeAmount, discountOnProration, item.InvoiceItem.Quantity);
+            var prorationCredits = ItemsBuilder.useProrationCredits(
+                item, amount, proratedUsersCredit, proratedStorageCredit, discountMap, adjustmentMap);
 
-                amount += (credit.InvoiceItem.ChargeAmount + discountOnProration);
-                // this can result in negative quantity => prorated downgrade
-                if (credit.InvoiceItem.ChargeAmount > 0) {
-                    // for some wicked reason, there are charged credits, see INV00005475
-                    quantity += credit.InvoiceItem.Quantity;
-                } else {
-                    quantity -= credit.InvoiceItem.Quantity;
-                }
-
-                credits.splice(index, 1);
-                index--;
-            }
+            amount = prorationCredits.amount;
+            var prorated = prorationCredits.prorated,
+                quantity = prorationCredits.quantity;
 
             if (!prorated &&
                 (item.InvoiceItem.ChargeName in ItemsBuilder.USERS_PRORATION ||
@@ -142,33 +110,11 @@ ItemsBuilder.processItems = function(
 
             /* Deal with invoice adjustments */
             if (context.invoiceAdjustmentAmount) {
-                // subtracting is basically discount
-                if (context.invoiceAdjustmentAmount < 0) {
-                    discount += context.invoiceAdjustmentAmount;
-                }
-                // adding charge by invoice adjustment is pretty crazy, so who knows what that should be...
-
-                // perfect match of amount and adjustment?
-                if (amount + context.invoiceAdjustmentAmount === 0) {
-                    context.invoiceAdjustmentAmount = 0;
-                    amount = 0;
-                // partial match?
-                } else if (Math.sign(amount) !== Math.sign(context.invoiceAdjustmentAmount)) {
-                    if (Math.abs(amount) > Math.abs(context.invoiceAdjustmentAmount)) {
-                        amount += context.invoiceAdjustmentAmount;
-                        context.invoiceAdjustmentAmount = 0;
-                    } else {
-                        context.invoiceAdjustmentAmount += amount;
-                        amount = 0;
-                    }
-                }
-                // else if signs match, skip this item, it probably should go to another one
+                var adjustments = ItemsBuilder.resolveInvoiceAdjustments(context.invoiceAdjustmentAmount, discount, amount);
+                discount = adjustments.discount;
+                amount = adjustments.amount;
+                context.invoiceAdjustmentAmount = adjustments.invoiceAdjustmentAmount;
             }
-
-            // if (!prorated && !discount && amount === 0 && quantity !== 0) { // Sales put price 0, instead of discount 100 %
-            //     discount = quantity * -10;
-            //     logger.warn("Invoice for $0 -> registering as 100% discount!");
-            // }
 
             /* chartmogul number format = in cents, discount positive number */
             amount = Math.round(amount * 100);
@@ -179,15 +125,8 @@ ItemsBuilder.processItems = function(
                 return; //useless
             }
 
-            var plan = plans[item.ProductRatePlan.Id];
-            if (!plan) {
-                plan = plans[ItemsBuilder.RATE_TO_PLANS[item.InvoiceItem.AccountingCode]];
-                logger.warn("There are items with deleted subscription on this invoice! %s", item.Invoice.InvoiceNumber);
-            }
-            if (!plan) {
-                logger.error(item);
-                throw new VError("Couldn't find UUID for plan");
-            }
+            var plan = ItemsBuilder.getPlan(item, plans);
+
             // compile line item for chartmogul
             return {
                 type: "subscription",
@@ -201,7 +140,7 @@ ItemsBuilder.processItems = function(
                 prorated: prorated,
                 quantity,
                 //discount_code: undefined,
-                discount_amount_in_cents: Math.round(discount),
+                discount_amount_in_cents: discount,
                 tax_amount_in_cents: item.InvoiceItem.TaxAmount,
                 external_id: item.InvoiceItem.Id,
                 __amendmentType: item.Amendment.Type
@@ -224,16 +163,22 @@ ItemsBuilder.processItems = function(
  */
 ItemsBuilder.mergeSimilar = function(items) {
     for (var i = 0; i < items.length - 1; i++) {
-        var item = items[i];
+        var item = items[i],
+            itemStart = moment.utc(item.service_period_start),
+            itemEnd = moment.utc(item.service_period_end);
+
         for (var k = i + 1; k < items.length; k++) {
-            var another = items[k];
+            var another = items[k],
+                anotherStart = moment.utc(another.service_period_start),
+                anotherEnd = moment.utc(another.service_period_end);
+
             /* Items are practically the same... */
-            if (+item.service_period_start === +another.service_period_start &&
-                +item.service_period_end === +another.service_period_end &&
+            if (+itemStart === +anotherStart &&
+                +itemEnd === +anotherEnd &&
                 item.subscription_external_id === another.subscription_external_id &&
                 item.plan_uuid === another.plan_uuid &&
                 item.type === another.type &&
-                item.quantity !== -another.quantity
+                (item.quantity + another.quantity) !== 0
             ) {
                 logger.debug("Merging item " + item.external_id + " with " + another.external_id);
                 item.prorated = item.prorated || another.prorated;
@@ -248,6 +193,95 @@ ItemsBuilder.mergeSimilar = function(items) {
 
     }
     return items.filter(i => i.quantity);
+};
+
+/**
+ * Adjustments always adjust the values towards zero (else in second condition).
+ */
+ItemsBuilder.resolveInvoiceAdjustments = function(invoiceAdjustmentAmount, discount, amount) {
+    // subtracting is basically discount
+    if (invoiceAdjustmentAmount < 0) {
+        discount += invoiceAdjustmentAmount;
+    }
+    // adding charge by invoice adjustment is pretty crazy, so who knows what that should be...
+
+    // perfect match of amount and adjustment?
+    if (amount + invoiceAdjustmentAmount === 0) {
+        invoiceAdjustmentAmount = 0;
+        amount = 0;
+    // partial match?
+    } else if (Math.sign(amount) !== Math.sign(invoiceAdjustmentAmount)) {
+        if (Math.abs(amount) > Math.abs(invoiceAdjustmentAmount)) {
+            amount += invoiceAdjustmentAmount;
+            invoiceAdjustmentAmount = 0;
+        } else {
+            invoiceAdjustmentAmount += amount;
+            amount = 0;
+        }
+    }
+    // else if signs match, skip this item, it probably should go to another one
+    return {invoiceAdjustmentAmount, discount, amount};
+};
+
+ItemsBuilder.useProrationCredits = function(item, amount, proratedUsersCredit, proratedStorageCredit, discountMap, adjustmentMap) {
+    var prorated = false,
+        quantity = item.InvoiceItem.Quantity,
+        credits = (item.InvoiceItem.ChargeName in ItemsBuilder.USERS_PRORATION ||
+                   item.InvoiceItem.ChargeName in ItemsBuilder.USERS_ITEMS) ?
+                    proratedUsersCredit : proratedStorageCredit;
+
+    logger.error(item);
+    var index = credits.length - 1;
+    while (index >= 0) {
+        let credit = credits[index];
+        if (credit.Subscription.Name !== item.Subscription.Name || // different subscription
+            // credit.InvoiceItem.Quantity === item.InvoiceItem.Quantity || // would result in 0 change
+            !ItemsBuilder.serviceIntersection(credit, item) || // non-intersecting
+            credit.InvoiceItem.AccountingCode !== item.InvoiceItem.AccountingCode) { // change of plan
+            index--;
+            continue;
+        }
+        prorated = true; // amount & quantity = change/differential
+        if (credit.InvoiceItem.Quantity === item.InvoiceItem.Quantity) {
+            quantity++; // HACK HACK HACK! CM doesn't accept 0 quantity;
+        }
+        // yes, really! See INV00003933, INV00004009
+        let discountOnProration = (discountMap[credit.InvoiceItem.Id] || 0) + (adjustmentMap[credit.InvoiceItem.Id] || 0);
+        //we are subtracting from amount (credit is negative)
+        logger.debug("Applying credit %d with discount %d and quantity %d",
+            credit.InvoiceItem.ChargeAmount, discountOnProration, item.InvoiceItem.Quantity);
+
+        amount += (credit.InvoiceItem.ChargeAmount + discountOnProration);
+        // this can result in negative quantity => prorated downgrade
+        if (credit.InvoiceItem.ChargeAmount > 0) {
+            // for some wicked reason, there are charged credits, see INV00005475
+            quantity += credit.InvoiceItem.Quantity;
+        } else {
+            quantity -= credit.InvoiceItem.Quantity;
+        }
+
+        credits.splice(index, 1);
+        index--;
+    }
+
+    return {amount, prorated, quantity};
+};
+
+ItemsBuilder.getPlan = function(item, plans) {
+    var uuid = (item.ProductRatePlan || {}).Id;
+    var plan = plans[uuid];
+
+    if (!plan) {
+        plan = plans[ItemsBuilder.RATE_TO_PLANS[item.InvoiceItem.AccountingCode]];
+        logger.warn("There are items with deleted subscription on this invoice! %s", item.Invoice.InvoiceNumber);
+    }
+    if (!plan) {
+        logger.error(item);
+        throw new VError("Couldn't find UUID for plan");
+    }
+    else {
+        return plan;
+    }
 };
 
 /* Utilities */
