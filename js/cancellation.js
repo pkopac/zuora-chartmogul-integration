@@ -41,7 +41,7 @@ Cancellation.cancelInvoices = function(invoices) {
         /* Classification of cancelation invoices */
         if (isRefund || isVoid) {
             try {
-                invoices.splice(i, 1); // throw away cancelation invoice
+                invoices.splice(i--, 1); // throw away cancelation invoice
                 invoice.__isRefund = isRefund;
                 cancellationInvoices.push(invoice);
             } catch (err) {
