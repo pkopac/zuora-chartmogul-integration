@@ -14,8 +14,6 @@ var InvoiceBuilder = function() {
 /* These constants are definitely company-specific and maybe should be refactored
  * out into config file. */
 
-InvoiceBuilder.MONTHS_UNPAID_TO_CANCEL = 2;
-
 InvoiceBuilder.CURRENCY = {
     // AQuA vs CSV Export
     USD: "USD", // "US Dollar": "USD",
@@ -40,7 +38,9 @@ InvoiceBuilder.buildInvoice = function(invoiceNumber, invoiceItems, postedDate,
         if (!dueDate) {
             throw new VError("dueDate " + dueDate);
         }
-        // TODO: Currency per account! If currency changes, this might be wrong.
+        /* Currency per account! If currency changes, this will be wrong.
+         * But there's probably no way to get currency per invoice.
+         */
         var invoice = new Invoice(
             invoiceNumber,
             moment.utc(postedDate),
@@ -57,6 +57,9 @@ InvoiceBuilder.buildInvoice = function(invoiceNumber, invoiceItems, postedDate,
             plansById
         );
 
+        // for cancellation module as this is not present in CM data model directly
+        invoice.__balance = invoiceItems[0].Invoice.Balance;
+
         let totalPayments = InvoiceBuilder.addPayments(payments,
             invoice,
             "Payment");
@@ -67,7 +70,7 @@ InvoiceBuilder.buildInvoice = function(invoiceNumber, invoiceItems, postedDate,
 
         var totalCreditAdjusted = InvoiceBuilder.testCreditAdjustmentCorrect(invoice, creditAdjs, totalPayments, totalRefunds);
 
-        //HACK: chartmogul doesn't allow partial refunds, let's ignore them :(
+        //TODO: I have an example of partial refund format for CM from Vinay, it can be implemented later.
         //TODO: there are multiple cases when this can happen - can be an error, a late discount done wrong etc.
         InvoiceBuilder.removePartialRefunds(invoice, totalPayments, totalRefunds, totalCreditAdjusted);
 
@@ -206,8 +209,6 @@ InvoiceBuilder.addInvoiceItems = function(invoiceItems, invoice, adjustments, in
     InvoiceBuilder.testTotalOfInvoiceEqualsTotalOfLineItems( // runtime sanity check
         invoiceItems[0], processedLineItems, itemAdjustmentAmountTotal, invoiceAdjustmentAmount);
 
-    InvoiceBuilder.cancelLongDueInvoices(invoiceItems[0], processedLineItems);
-
     processedLineItems
         .forEach(invoice.addLineItem.bind(invoice));
 
@@ -226,23 +227,6 @@ InvoiceBuilder.testTotalOfInvoiceEqualsTotalOfLineItems = function (
             total, shouldBeTotal, firstItem.Invoice.Amount, itemAdjustmentAmountTotal, invoiceAdjustmentAmount);
 
         throw new VError("Total of line items not the total of invoice!");
-    }
-};
-
-/**
- * HACK: unpaid invoice more than X months -> cancel subscriptions.
- * Under normal circumstances such accounts should be dealt with by sales
- * retention process.
- */
-InvoiceBuilder.cancelLongDueInvoices = function (zuoraItem, line_items) {
-
-    if (zuoraItem.Invoice.Amount > 0 && zuoraItem.Invoice.Balance > 0 &&
-            moment().diff(moment.utc(zuoraItem.Invoice.DueDate), "month") >= InvoiceBuilder.MONTHS_UNPAID_TO_CANCEL &&
-            !line_items[0].cancelled_at) {
-        var cancel = _.sortBy(line_items.filter(i => i.amount_in_cents >= 0), "service_period_start")[0].service_period_start;
-        line_items.forEach(function (item) {
-            item.cancelled_at = cancel;
-        });
     }
 };
 

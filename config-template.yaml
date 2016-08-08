@@ -1,4 +1,5 @@
 ---
+  # Required credentials settings
   chartmogul:
     accountToken: ""
     secretKey: ""
@@ -6,14 +7,21 @@
     username: ""
     password: ""
     production: true
+  # Optional settings
+  cancellation:
+    # Unpaid invoices due more than x months are considered canceled.
+    unpaidToCancelMonths: 2
+    # Subscriptions that didn't get a renewal invoice in under x months are canceled
+    # after their term.
+    noRenewalToCancelMonths: 2
   transformer:
     includeFree: false
     dataSource: "Zuora-00"
-    #accounts:
-      exclude:
-        - ""
-      include:
-        - ""
+    # accounts:
+    #   exclude:
+    #     - ""
+    #   include:
+    #     - ""
   log4js:
     levels:
       [all]: "DEBUG"

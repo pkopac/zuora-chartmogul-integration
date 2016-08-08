@@ -6,15 +6,16 @@ var logger = require("log4js").getLogger("transformer"),
     moment = require("moment"),
     VError = require("verror"),
     InvoiceBuilder = require("./invoiceBuilder.js").InvoiceBuilder,
-    PendingRefunds = require("./pendingRefunds.js").PendingRefunds,
-    Cancellation = require("./cancellation.js").Cancellation;
+    PendingRefunds = require("./pendingRefunds.js").PendingRefunds;
+
 /**
  * Uses loader and importer to manipulate I/O. Contains business logic of
  * changing zuora data into chartmogul data.
  */
-var Transformer = function(loader, importer) {
+var Transformer = function(loader, importer, cancellation) {
     this.loader = loader;
     this.importer = importer;
+    this.cancellation = cancellation;
 
     this.includeFree = false;
 };
@@ -258,7 +259,7 @@ Transformer.prototype.makeInvoices = function(
                 throw new VError(err, "Failed to add extra-invoice refunds to account " + accountId);
             }
 
-            invoicesToImport = Cancellation.cancelInvoices(invoicesToImport);
+            invoicesToImport = self.cancellation.cancelInvoices(invoicesToImport);
 
             /* Any two invoices for the same term, annulling each other can be omitted.
              * It's after canceling, because that might be better way to deal with such invoices. */

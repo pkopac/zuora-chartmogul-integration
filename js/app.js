@@ -14,6 +14,7 @@ require("any-promise/register/q");
 
 var Loader = require("./loader.js").Loader;
 var Transformer = require("./transformer.js").Transformer;
+var Cancellation = require("./cancellation.js").Cancellation;
 var log4js = require("log4js");
 var logger = log4js.getLogger("app");
 
@@ -115,7 +116,9 @@ function runTransformation(configuration, dry, update) {
     }
     importer.configure(configuration.chartmogul);
 
-    var transformer = new Transformer(loader, importer);
+    var cancellation = new Cancellation(configuration.cancellation);
+
+    var transformer = new Transformer(loader, importer, cancellation);
     transformer.configure(configuration.transformer);
 
     transformer.run()
