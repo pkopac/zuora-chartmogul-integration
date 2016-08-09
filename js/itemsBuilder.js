@@ -256,12 +256,12 @@ ItemsBuilder.useProrationCredits = function(item, amount, proratedUsersCredit, p
             quantity -= credit.InvoiceItem.Quantity;
         }
 
-        if (quantity === 0) {
-            quantity = 1; // HACK HACK HACK! CM doesn't accept 0 quantity;
-        }
-
         credits.splice(index, 1);
         index--;
+    }
+
+    if (quantity === 0) {
+        quantity = 1; // HACK HACK HACK! CM doesn't accept 0 quantity;
     }
 
     return {amount, prorated, quantity};

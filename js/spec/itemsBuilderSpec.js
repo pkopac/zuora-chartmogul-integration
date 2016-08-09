@@ -480,7 +480,7 @@ describe("ItemBuilder", function() {
 
 
             var expected = {
-                amount: amount + 20,
+                amount: amount + 10,
                 prorated: true,
                 quantity: 10
             };
