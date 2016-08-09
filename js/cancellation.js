@@ -68,7 +68,8 @@ Cancellation.prototype._downgradeAsCancel = function(invoices) {
                 !item.amount_in_cents && !item.discount_amount_in_cents && !item.prorated),
             isRefund = invoice.line_items.every(item =>
                 item.__amendmentType === "RemoveProduct" &&
-                item.amount_in_cents <= 0); // can be 0, because of adjustments
+                item.amount_in_cents <= 0 && // can be 0, because of adjustments
+                item.discount_amount_in_cents === 0); // typically there's no discount on cancellation (makes no sense)
 
         logger.trace("%s %s %s", invoice.external_id, isVoid, isRefund);
 
