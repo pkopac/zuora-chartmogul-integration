@@ -230,7 +230,6 @@ ItemsBuilder.useProrationCredits = function(item, amount, proratedUsersCredit, p
                    item.InvoiceItem.ChargeName in ItemsBuilder.USERS_ITEMS) ?
                     proratedUsersCredit : proratedStorageCredit;
 
-    logger.error(item);
     var index = credits.length - 1;
     while (index >= 0) {
         let credit = credits[index];
