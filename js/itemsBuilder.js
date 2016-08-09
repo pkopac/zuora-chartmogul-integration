@@ -2,6 +2,7 @@
 
 var logger = require("log4js")
                 .getLogger("itemsBuilder"),
+    _ = require("lodash"),
     VError = require("verror"),
     moment = require("moment"),
     PLANS = require("./importer.js").Importer.PLANS;
@@ -108,6 +109,12 @@ ItemsBuilder.processItems = function(
                 logger.warn("Couldn't find credit, but item is prorated! Invoice: %s", item.Invoice.InvoiceNumber);
             }
 
+            // TODO: resolve storage items; must be solved before adjustments, so they don't interfere in the algorithm
+            if (item.InvoiceItem.ChargeName in ItemsBuilder.STORAGE_ITEMS &&
+                amount === 0 && discount === 0) {
+                return; //useless
+            }
+
             /* Deal with invoice adjustments */
             if (context.invoiceAdjustmentAmount) {
                 var adjustments = ItemsBuilder.resolveInvoiceAdjustments(context.invoiceAdjustmentAmount, discount, amount);
@@ -119,11 +126,6 @@ ItemsBuilder.processItems = function(
             /* chartmogul number format = in cents, discount positive number */
             amount = Math.round(amount * 100);
             discount = Math.round(discount * -100);
-
-            if (item.InvoiceItem.ChargeName in ItemsBuilder.STORAGE_ITEMS &&
-                amount === 0 && discount === 0) {
-                return; //useless
-            }
 
             var plan = ItemsBuilder.getPlan(item, plans);
 
@@ -154,6 +156,9 @@ ItemsBuilder.processItems = function(
                         );
 
     result = ItemsBuilder.mergeSimilar(result);
+
+    // sort items by term start - postprocessing relies on the order
+    result = _.sortBy(result, item => +moment.utc(item.service_period_start));
 
     return result;
 };

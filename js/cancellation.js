@@ -68,7 +68,7 @@ Cancellation.prototype._downgradeAsCancel = function(invoices) {
                 !item.amount_in_cents && !item.discount_amount_in_cents && !item.prorated),
             isRefund = invoice.line_items.every(item =>
                 item.__amendmentType === "RemoveProduct" &&
-                item.amount_in_cents < 0);
+                item.amount_in_cents <= 0); // can be 0, because of adjustments
 
         logger.trace("%s %s %s", invoice.external_id, isVoid, isRefund);
 
@@ -162,7 +162,7 @@ Cancellation.prototype._cancelLongDueInvoices = function (invoices, mToday) {
  */
 Cancellation.prototype._processCancellations = function(invoice, invoices) {
     var isRefund = invoice.__isRefund,
-        bySub = _.groupBy(invoice.line_items.filter(item => !isRefund || item.amount_in_cents), "subscription_external_id");
+        bySub = _.groupBy(invoice.line_items.filter(item => !isRefund || item.amount_in_cents || item.__amendmentType === "RemoveProduct"), "subscription_external_id");
 
     logger.debug("Processing %s cancellation invoice...", invoice.external_id);
 

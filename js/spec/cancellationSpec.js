@@ -652,6 +652,180 @@ describe("Cancellation", function(){
         expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
     });
 
+    it("Prorated + new term invoice not canceled as non-renewal.", function() {
+        cancellation = new Cancellation();
+        cancellation.configure({unpaidToCancelMonths: 10000, noRenewalToCancelMonths: 1});
+
+        var result = cancellation._downgradeAsCancel(    [
+
+            {
+                "external_id": "I01",
+                "date": "2015-09-27T09:52:47+00:00",
+                "currency": "USD",
+                "due_date": "2015-09-27T00:00:00+00:00",
+                "line_items": [
+                    {
+                        "type": "subscription",
+                        "subscription_external_id": "A-1",
+                        "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                        "service_period_start": "2015-09-27T00:00:00+00:00",
+                        "service_period_end": "2015-10-26T23:59:59+00:00",
+                        "amount_in_cents": 15000,
+                        "prorated": false,
+                        "quantity": 15,
+                        "discount_amount_in_cents": 0,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "012",
+                        "__amendmentType": "UpdateProduct"
+                    }
+                ],
+                "transactions": [
+                    {
+                        "date": "2015-10-16T18:51:05+00:00",
+                        "type": "payment",
+                        "result": "successful",
+                        "external_id": "P-01"
+                    }
+                ],
+                "__balance": 0
+            },
+            {
+                "external_id": "I02",
+                "date": "2015-10-27T10:08:58+00:00",
+                "currency": "USD",
+                "due_date": "2015-10-27T00:00:00+00:00",
+                "line_items": [
+                    {
+                        "type": "subscription",
+                        "subscription_external_id": "A-1",
+                        "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                        "service_period_start": "2015-10-27T00:00:00+00:00",
+                        "service_period_end": "2015-11-26T23:59:59+00:00",
+                        "amount_in_cents": 0,
+                        "prorated": false,
+                        "quantity": 15,
+                        "discount_amount_in_cents": 15000,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "0123",
+                        "__amendmentType": "UpdateProduct"
+                    }
+                ],
+                "transactions": [],
+                "__balance": 0
+            },
+            {
+                "external_id": "I03",
+                "date": "2015-11-27T11:12:43+00:00",
+                "currency": "USD",
+                "due_date": "2015-11-27T00:00:00+00:00",
+                "line_items": [
+                    {
+                        "type": "subscription",
+                        "subscription_external_id": "A-1",
+                        "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                        "service_period_start": "2015-11-27T00:00:00+00:00",
+                        "service_period_end": "2015-12-26T23:59:59+00:00",
+                        "amount_in_cents": 0,
+                        "prorated": false,
+                        "quantity": 15,
+                        "discount_amount_in_cents": 15000,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "212",
+                        "__amendmentType": "UpdateProduct"
+                    }
+                ],
+                "transactions": [],
+                "__balance": 0
+            },
+            {
+                "external_id": "I66",
+                "date": "2016-05-02T22:12:45+00:00",
+                "currency": "USD",
+                "due_date": "2016-05-02T00:00:00+00:00",
+                "line_items": [
+                    {
+                        "type": "subscription",
+                        "subscription_external_id": "A-1",
+                        "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                        "service_period_start": "2015-10-23T00:00:00+00:00",
+                        "service_period_end": "2015-10-26T23:59:59+00:00",
+                        "amount_in_cents": 0,
+                        "prorated": true,
+                        "quantity": -15,
+                        "discount_amount_in_cents": 0,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "1-a",
+                        "__amendmentType": "RemoveProduct"
+                    },
+                    {
+                        "type": "subscription",
+                        "subscription_external_id": "A-1",
+                        "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                        "service_period_start": "2015-11-27T00:00:00+00:00",
+                        "service_period_end": "2015-12-26T23:59:59+00:00",
+                        "amount_in_cents": 0,
+                        "prorated": true,
+                        "quantity": -15,
+                        "discount_amount_in_cents": 0,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "2-a",
+                        "__amendmentType": "RemoveProduct"
+                    },
+                    {
+                        "type": "subscription",
+                        "subscription_external_id": "A-1",
+                        "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                        "service_period_start": "2015-10-27T00:00:00+00:00",
+                        "service_period_end": "2015-11-26T23:59:59+00:00",
+                        "amount_in_cents": 0,
+                        "prorated": true,
+                        "quantity": -15,
+                        "discount_amount_in_cents": 0,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "3-a",
+                        "__amendmentType": "RemoveProduct"
+                    }
+                ],
+                "transactions": [],
+                "__balance": 0
+            }
+        ]);
+
+        const EXPECTED = [{
+            "external_id": "I01",
+            "date": "2015-09-27T09:52:47+00:00",
+            "currency": "USD",
+            "due_date": "2015-09-27T00:00:00+00:00",
+            "line_items": [
+                {
+                    "type": "subscription",
+                    "subscription_external_id": "A-1",
+                    "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                    "service_period_start": "2015-09-27T00:00:00+00:00",
+                    "service_period_end": "2015-10-26T23:59:59+00:00",
+                    "amount_in_cents": 15000,
+                    "prorated": false,
+                    "quantity": 15,
+                    "discount_amount_in_cents": 0,
+                    "tax_amount_in_cents": 0,
+                    "external_id": "012",
+                    "__amendmentType": "UpdateProduct",
+                    "cancelled_at": "2015-10-23T00:00:00+00:00"
+                }
+            ],
+            "transactions": [
+                {
+                    "date": "2015-10-16T18:51:05+00:00",
+                    "type": "payment",
+                    "result": "successful",
+                    "external_id": "P-01"
+                }
+            ],
+            "__balance": 0
+        }];
+        expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
+    });
+
     describe("Secondary", function(){
         it("Configure sets defaults if not given in json", function(){
             var tested = new Cancellation();
@@ -671,5 +845,7 @@ describe("Cancellation", function(){
         });
 
     });
+
+
 
 });
