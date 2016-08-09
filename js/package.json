@@ -26,6 +26,7 @@
         "lodash": "~4.13.1",
         "log4js": "~0.6.25",
         "minimist": "~1.2.0",
+        "mongodb": "~2.2.5",
         "moment": ">=2.5.1",
         "moment-range": "*",
         "prompt": "~1.0.0",

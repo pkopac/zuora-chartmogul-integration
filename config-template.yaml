@@ -22,6 +22,10 @@
     #     - ""
     #   include:
     #     - ""
+  export:
+    mongo:
+      url: "mongodb://localhost:21017/db"
+      collection: ""
   log4js:
     levels:
       [all]: "DEBUG"

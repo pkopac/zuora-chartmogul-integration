@@ -26,7 +26,7 @@ function printHelpAndExit() {
     console.error("Integrate Zuora and ChartMogul.");
     console.error("  -c <file>, --config <file>            Path to config.json.");
     console.error("  -d, --dry                             Dry run doesn't interact with Chartmogul.");
-    console.error("  -e <output type>, --export <>         Download MRR activity data from Chartmogul. Output: [csv | json ...]");
+    console.error("  -e <output type>, --export <>         Download MRR activity data from Chartmogul. Output: [csv | json | mongo ]");
     console.error("  -h, --help                            Show this help message.");
     console.error("  -i, --interactive                     Run interactive ZOQL console.");
     console.error("  -o <file>, --output <file>            Path to dump data (use with -q or -m).");
@@ -40,7 +40,7 @@ function printHelpAndExit() {
 
 function processArgs() {
     argv = minimist(process.argv.slice(2),
-    { string: ["config", "export", "output", "query", "type"],
+    { string: ["config", "export", "output", "query", "type", "pwd"],
       boolean: ["dry", "help", "interactive", "update"],
       alias: {
           config: "c",
@@ -136,16 +136,16 @@ function runTransformation(configuration, dry, update) {
         .done();
 }
 
-function runExport(configuration, fileType, outputFile, exportType, params) {
+function runExport(configuration, fileType, outputFile, pwd, exportType, params) {
     var Exporter = require("./extra/exporter.js").Exporter,
-        exporter = new Exporter().configure(configuration.chartmogul);
+        exporter = new Exporter().configure(configuration.chartmogul, configuration.export);
 
     var dataSource = "zuora";
     if (configuration && configuration.transformer && configuration.transformer.dataSource) {
         dataSource = configuration.transformer.dataSource;
     }
     logger.info("Export of %s to run now...", exportType);
-    exporter["run_" + exportType](dataSource, fileType, outputFile, params)
+    exporter["run_" + exportType](dataSource, fileType, outputFile, pwd, params)
         .done();
 }
 
@@ -164,7 +164,7 @@ function runExport(configuration, fileType, outputFile, exportType, params) {
     } else if (argv.query) {
         runQuery(configuration, argv.query, argv.output);
     } else if (argv.export) {
-        runExport(configuration, argv.export, argv.output, argv.type, JSON.parse(argv.params));
+        runExport(configuration, argv.export, argv.output, argv.pwd, argv.type, JSON.parse(argv.params));
     } else {
         runTransformation(configuration, argv.dry, argv.update);
     }

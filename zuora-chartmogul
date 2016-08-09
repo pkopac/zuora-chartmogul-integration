@@ -1,4 +1,4 @@
 #!/bin/bash
-
+PWD=$(pwd)
 cd /usr/share/zuora-chartmogul/
-node app.js "$@"
+node app.js "$@" --pwd "$PWD"

@@ -4,17 +4,22 @@ var cm = require("chartmoguljs"),
     Q = require("q"),
     _ = require("lodash"),
     fs = require("fs"),
+    path = require("path"),
     json2csv = require("json2csv"),
     getDataSource = new (require("../importer.js").Importer)().getDataSourceOrFail,
     logger = require("log4js").getLogger("exporter");
 
 var Exporter = function() {
-    this.SUPPORTED_TYPES = {csv: 1, json: 1};
+    this.SUPPORTED_TYPES = {csv: 1, json: 1, mongo: 1};
 };
 
-Exporter.prototype.configure = function (json) {
+Exporter.prototype.configure = function (cmJson, exportJson) {
     logger.debug("Configuring chartmogul client...");
-    cm.config(json);
+    cm.config(cmJson);
+    if (!exportJson) {
+        return this;
+    }
+    this.mongo = exportJson.mongo;
     return this;
 };
 
@@ -53,6 +58,31 @@ function fetchAllTheMetrics(dataSource, exportType, outputFile, action) {
         .then(csv => Q.ninvoke(fs, "writeFile", outputFile, csv));
 }
 
+function saveToMongo(url, collection, mrr) {
+    var MongoClient = require("mongodb").MongoClient,
+        db;
+
+    return Q(MongoClient.connect(url))
+        .then(connection => Q.all([db = connection, Q.ninvoke(db, "collection", collection), mrr]))
+        .spread((db, col, data) => {
+            var bulk = col.initializeUnorderedBulkOp();
+            data.entries.forEach(entry => {
+                bulk.find({_id: new Date(entry.date)})
+                    .upsert()
+                    .updateOne({$set: {
+                        newBusiness: entry["mrr-new-business"],
+                        expansion: entry["mrr-expansion"],
+                        contraction: entry["mrr-contraction"],
+                        churn: entry["mrr-churn"],
+                        reactivation: entry["mrr-reactivation"]
+                    }});
+            });
+            return bulk.execute();
+        })
+        .then(bulk => logger.info("Upload completed: ", bulk.isOk()))
+        .finally(() => db && db.close());
+}
+
 Exporter.prototype.run_subscriptions = function (dataSource, exportType, outputFile) {
     if (! (exportType in this.SUPPORTED_TYPES)) {
         throw new Error("Unsupported type: " + exportType + " Supported types: " + Object.keys(this.SUPPORTED_TYPES));
@@ -75,17 +105,33 @@ function check(params, field) {
     }
 }
 
-Exporter.prototype.run_mrr = function (dataSource, exportType, outputFile, params) {
+Exporter.prototype.run_mrr = function (dataSource, exportType, outputFile, pwd, params) {
     check(params, "end-date");
     check(params, "start-date");
+
     if (! (exportType in this.SUPPORTED_TYPES)) {
         throw new Error("Unsupported type: " + exportType + " Supported types: " + Object.keys(this.SUPPORTED_TYPES));
     }
 
-    return cm.metrics.retrieveMRR(params["start-date"], params["end-date"], "day")
-        .then(transform(exportType))
-        .then(csv => Q.ninvoke(fs, "writeFile", outputFile, csv));
+    if (exportType === "mongo" && !(this.mongo && this.mongo.collection && this.mongo.url)) {
+        throw new Error("There's no export.mongo.url or export.mongo.collection for MongoDB connection in config file!");
+    }
 
+    if (exportType === "mongo" && exportType !== "mrr") {
+        throw new Error("Only MRR Mongo export implemented.");
+    }
+
+    if (outputFile && !outputFile.startsWith("/") && pwd) {
+        path.join(pwd, outputFile);
+    }
+
+    var mrr = cm.metrics.retrieveMRR(params["start-date"], params["end-date"], "day");
+    if (exportType === "mongo") {
+        return saveToMongo(this.mongo.url, this.mongo.collection, mrr);
+    } else {
+        return mrr.then(transform(exportType))
+            .then(data => Q.ninvoke(fs, "writeFile", outputFile, data));
+    }
 };
 
 exports.Exporter = Exporter;
