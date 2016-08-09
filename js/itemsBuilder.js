@@ -241,9 +241,6 @@ ItemsBuilder.useProrationCredits = function(item, amount, proratedUsersCredit, p
             continue;
         }
         prorated = true; // amount & quantity = change/differential
-        if (credit.InvoiceItem.Quantity === item.InvoiceItem.Quantity) {
-            quantity++; // HACK HACK HACK! CM doesn't accept 0 quantity;
-        }
         // yes, really! See INV00003933, INV00004009
         let discountOnProration = (discountMap[credit.InvoiceItem.Id] || 0) + (adjustmentMap[credit.InvoiceItem.Id] || 0);
         //we are subtracting from amount (credit is negative)
@@ -257,6 +254,10 @@ ItemsBuilder.useProrationCredits = function(item, amount, proratedUsersCredit, p
             quantity += credit.InvoiceItem.Quantity;
         } else {
             quantity -= credit.InvoiceItem.Quantity;
+        }
+
+        if (quantity === 0) {
+            quantity = 1; // HACK HACK HACK! CM doesn't accept 0 quantity;
         }
 
         credits.splice(index, 1);

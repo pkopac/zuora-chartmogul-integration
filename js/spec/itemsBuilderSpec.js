@@ -323,19 +323,168 @@ describe("ItemBuilder", function() {
     });
 
     describe("useProrationCredits", function () {
-        var item = {
-            InvoiceItem: {
-                Quantity: 5,
-                ChargeName: "Users",
-                AccountingCode: "ANNUALFEE"
-            },
-            Subscription: {
-                Name: "A-S00018338"
-            }
-        };
+        var amount = 5,
+            item = {
+                InvoiceItem: {
+                    Quantity: 5,
+                    ChargeName: "Users",
+                    AccountingCode: "ANNUALFEE",
+                    ServiceStartDate: "2016-05-01",
+                    ServiceEndDate: "2016-05-03"
+                },
+                Subscription: {
+                    Name: "name1"
+                }
+            };
 
-        it("", function () {
+        it("no credits", function () {
+            var proratedUsersCredit = [],
+                prorationCredits = ItemsBuilder.useProrationCredits(item, amount, proratedUsersCredit, [], {}, {});
 
+            var expected = {
+                amount,
+                prorated: false,
+                quantity: 5
+            };
+            expect(diff(prorationCredits, expected)).toEqual();
+        });
+
+        it("different subscriptions, non-intersecting, different plans", function() {
+            var expected = {
+                amount,
+                prorated: false,
+                quantity: 5
+            };
+
+            // different subscriptions
+            var proratedUsersCredit = [
+                {
+                    InvoiceItem: {
+                        Quantity: 5,
+                        ChargeName: "Users",
+                        ChargeAmount: -10,
+                        AccountingCode: "ANNUALFEE"
+                    },
+                    Subscription: {
+                        Name: "name2"
+                    }
+                }
+            ];
+
+            var prorationCredits = ItemsBuilder.useProrationCredits(item, amount, proratedUsersCredit, [], {}, {});
+            expect(diff(prorationCredits, expected)).toEqual();
+
+            // non-intersecting
+            proratedUsersCredit = [
+                {
+                    InvoiceItem: {
+                        Quantity: 5,
+                        ChargeName: "Users",
+                        ChargeAmount: -10,
+                        AccountingCode: "ANNUALFEE",
+                        ServiceStartDate: "2016-05-03",
+                        ServiceEndDate: "2016-05-05"
+                    },
+                    Subscription: {
+                        Name: "name1"
+                    }
+                }
+            ];
+
+            prorationCredits = ItemsBuilder.useProrationCredits(item, amount, proratedUsersCredit, [], {}, {});
+            expect(diff(prorationCredits, expected)).toEqual();
+
+            // different plans
+            proratedUsersCredit = [
+                {
+                    InvoiceItem: {
+                        Quantity: 5,
+                        ChargeName: "Users",
+                        ChargeAmount: -10,
+                        AccountingCode: "QUARTERLYFEE",
+                        ServiceStartDate: "2016-05-02",
+                        ServiceEndDate: "2016-05-04"
+                    },
+                    Subscription: {
+                        Name: "name1"
+                    }
+                }
+            ];
+
+            prorationCredits = ItemsBuilder.useProrationCredits(item, amount, proratedUsersCredit, [], {}, {});
+            expect(diff(prorationCredits, expected)).toEqual();
+        });
+
+        it("hack same quantities", function() {
+            var proratedUsersCredit = [
+                {
+                    InvoiceItem: {
+                        Quantity: item.InvoiceItem.Quantity,
+                        ChargeName: "Users",
+                        ChargeAmount: -10,
+                        AccountingCode: "ANNUALFEE",
+                        ServiceStartDate: "2016-05-02",
+                        ServiceEndDate: "2016-05-04"
+                    },
+                    Subscription: {
+                        Name: "name1"
+                    }
+                }
+            ];
+
+            var expected = {
+                amount: amount + proratedUsersCredit[0].InvoiceItem.ChargeAmount,
+                prorated: true,
+                quantity: 1
+            };
+
+            var prorationCredits = ItemsBuilder.useProrationCredits(item, amount, proratedUsersCredit, [], {}, {});
+            expect(diff(prorationCredits, expected)).toEqual();
+        });
+
+        it("multiple credits, use discount and adjustment", function() {
+            var proratedUsersCredit = [
+                {
+                    InvoiceItem: {
+                        Id: "id1",
+                        Quantity: 10,
+                        ChargeName: "Users",
+                        ChargeAmount: 10,
+                        AccountingCode: "ANNUALFEE",
+                        ServiceStartDate: "2016-05-02",
+                        ServiceEndDate: "2016-05-04"
+                    },
+                    Subscription: {
+                        Name: "name1"
+                    }
+                },
+                {
+                    InvoiceItem: {
+                        Id: "id2",
+                        Quantity: 5,
+                        ChargeName: "Users",
+                        ChargeAmount: -10,
+                        AccountingCode: "ANNUALFEE",
+                        ServiceStartDate: "2016-05-02",
+                        ServiceEndDate: "2016-05-04"
+                    },
+                    Subscription: {
+                        Name: "name1"
+                    }
+                }
+            ];
+
+            var discountMap = { "id1": -5, "id2": 10 },
+                adjustmentMap = { "id1": -5, "id2": 10 },
+                prorationCredits = ItemsBuilder.useProrationCredits(item, amount, proratedUsersCredit, [], discountMap, adjustmentMap);
+
+
+            var expected = {
+                amount: amount + 20,
+                prorated: true,
+                quantity: 10
+            };
+            expect(diff(prorationCredits, expected)).toEqual();
         });
     });
 
