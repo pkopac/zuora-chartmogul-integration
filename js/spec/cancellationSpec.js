@@ -88,6 +88,69 @@ describe("Cancellation", function(){
         expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
     });
 
+    it("Seemingly void invoice DOESN'T cancel previous, because it is prorated.", function(){
+        var result = cancellation.cancelInvoices([
+            {external_id: "I01", __balance: 0, line_items: [
+                {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
+                 service_period_start: "2016-05-01", service_period_end: "2016-05-30", "external_id": "ii01"}
+            ]},
+            {external_id: "I02", __balance: 0, line_items: [
+                {subscription_external_id: "S02", amount_in_cents: 500, discount_amount_in_cents:500, quantity: 10,
+                 service_period_start: "2016-05-01", service_period_end: "2016-05-30", "external_id": "ii02"}
+            ]},
+            {external_id: "I05", __balance: 0, line_items: [
+                {subscription_external_id: "S01", amount_in_cents: 0, prorated: true, discount_amount_in_cents:0, quantity: 0,
+                 service_period_start: "2016-05-09", service_period_end: "2016-05-30", "external_id": "ii03"}
+            ]}
+        ]);
+
+        const EXPECTED = [
+            {
+                "external_id": "I01",
+                "line_items": [
+                    {
+                        "subscription_external_id": "S01",
+                        "amount_in_cents": 500,
+                        "discount_amount_in_cents": 0,
+                        "quantity": 5,
+                        "service_period_start": "2016-05-01",
+                        "service_period_end": "2016-05-30",
+                        "external_id": "ii01"
+                    }
+                ]
+            },
+            {
+                "external_id": "I02",
+                "line_items": [
+                    {
+                        "subscription_external_id": "S02",
+                        "amount_in_cents": 500,
+                        "discount_amount_in_cents": 500,
+                        "quantity": 10,
+                        "service_period_start": "2016-05-01",
+                        "service_period_end": "2016-05-30",
+                        "external_id": "ii02"
+                    }
+                ]
+            },
+            {
+                "external_id": "I05",
+                "line_items": [
+                    {
+                        "subscription_external_id": "S01",
+                        "amount_in_cents": 0,
+                        "prorated": true,
+                        "discount_amount_in_cents": 0,
+                        "quantity": 0,
+                        "service_period_start": "2016-05-09",
+                        "service_period_end": "2016-05-30",
+                        "external_id": "ii03"
+                    }
+                ]
+            }];
+        expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
+    });
+
     it("Simple refund invoice cancels previous of its subscription, leaves alone others", function(){
         var result = cancellation.cancelInvoices([
             {external_id: "I01", "__balance": 0, line_items: [

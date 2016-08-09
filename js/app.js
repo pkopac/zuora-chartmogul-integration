@@ -128,7 +128,7 @@ function runTransformation(configuration, dry, update) {
             if (err.error && err.error.invoices) {
                 logger.fatal(err.error.invoices);
             } else {
-                logger.fatal(err);
+                logger.fatal(JSON.stringify(err, null, 2));
             }
             process.exit(err.statusCode || 1);
         })

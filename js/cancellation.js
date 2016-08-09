@@ -65,7 +65,7 @@ Cancellation.prototype._downgradeAsCancel = function(invoices) {
     for (var i = 0; i < invoices.length; i++) {
         var invoice = invoices[i],
             isVoid = invoice.line_items.every(item => // transfer to Free
-                !item.amount_in_cents && !item.discount_amount_in_cents),
+                !item.amount_in_cents && !item.discount_amount_in_cents && !item.prorated),
             isRefund = invoice.line_items.every(item =>
                 item.__amendmentType === "RemoveProduct" &&
                 item.amount_in_cents < 0);
