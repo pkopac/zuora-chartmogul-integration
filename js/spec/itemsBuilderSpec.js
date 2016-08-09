@@ -3,8 +3,6 @@
 
 var ItemsBuilder = require("../itemsBuilder.js").ItemsBuilder;
 var diff = require("deep-diff").diff;
-// TODO: remove logger
-var logger = require("log4js").getLogger("test");
 var VError = require("verror");
 var moment = require("moment");
 
@@ -488,5 +486,187 @@ describe("ItemBuilder", function() {
         });
     });
 
-    // TODO: write end to end test
+    describe("handleUnmatchedCredits", function() {
+        it("prorated storage credit not empty", function() {
+            expect(function(){ ItemsBuilder.handleUnmatchedCredits([], ["storage"], []); }).toThrowError(VError);
+        });
+    });
+
+    describe("handleUnmatchedCredits + processItems (recursion)", function() {
+        it("recursive integration works", function() {
+            var items = [
+                {
+                    InvoiceItem:
+                    {
+                        AccountingCode: "ANNUALFEE",
+                        ChargeAmount: 1,
+                        ChargeName: "Initial 250 GB of storage",
+                        Id: "id1",
+                        Quantity: 1,
+                        ServiceEndDate: "2016-05-02",
+                        ServiceStartDate: "2016-05-01",
+                        TaxAmount: 0
+                    },
+                    Invoice:
+                    {
+                        AdjustmentAmount: 0,
+                        InvoiceNumber: "invoice1"
+                    },
+                    ProductRatePlan: {
+                        Id: "id1"
+                    },
+                    Subscription: {
+                        CancelledDate: "",
+                        Id: "id1",
+                        Name: "name1"
+                    },
+                    Amendment: {
+                        Type: ""
+                    }
+                },
+                {
+                    InvoiceItem:
+                    {
+                        AccountingCode: "ANNUALFEE",
+                        ChargeAmount: 0,
+                        ChargeName: "Initial 250 GB of storage",
+                        Id: "id3",
+                        Quantity: 1,
+                        ServiceEndDate: "2016-05-02",
+                        ServiceStartDate: "2016-05-01",
+                        TaxAmount: 0
+                    },
+                    Invoice:
+                    {
+                        AdjustmentAmount: 0,
+                        InvoiceNumber: "invoice3"
+                    },
+                    ProductRatePlan: {
+                        Id: "id3"
+                    },
+                    Subscription: {
+                        CancelledDate: "",
+                        Id: "id3",
+                        Name: "name3"
+                    },
+                    Amendment: {
+                        Type: ""
+                    }
+                },
+                {
+                    InvoiceItem:
+                    {
+                        AccountingCode: "ANNUALFEE",
+                        ChargeAmount: 1,
+                        ChargeName: "Initial 250 GB of storage",
+                        Id: "id4",
+                        Quantity: 1,
+                        ServiceEndDate: "2016-05-02",
+                        ServiceStartDate: "2016-05-01",
+                        TaxAmount: 0
+                    },
+                    Invoice:
+                    {
+                        AdjustmentAmount: 10,
+                        InvoiceNumber: "invoice4"
+                    },
+                    ProductRatePlan: {
+                        Id: "id4"
+                    },
+                    Subscription: {
+                        CancelledDate: "",
+                        Id: "id4",
+                        Name: "name4"
+                    },
+                    Amendment: {
+                        Type: ""
+                    }
+                }
+            ];
+
+            var context = {
+                adjustmentMap: {},
+                discountMap: {},
+                invoiceAdjustmentAmount: 0,
+                plans: {
+                    id1: "plan",
+                    "Generic Annually": "generic plan"
+                }
+            };
+            var proratedUsersCredit = [
+                {
+                    InvoiceItem: {
+                        Id: "id2",
+                        Quantity: 10,
+                        ChargeName: "Users",
+                        ChargeAmount: 10,
+                        AccountingCode: "ANNUALFEE",
+                        ServiceStartDate: "2016-05-02",
+                        ServiceEndDate: "2016-05-04"
+                    },
+                    Invoice:
+                    {
+                        InvoiceNumber: "invoice2"
+                    },
+                    Subscription: {
+                        Name: "name2"
+                    },
+                    Amendment: {
+                        Type: ""
+                    }
+                }
+            ];
+
+            var expected = [
+                {
+                    type: "subscription",
+                    subscription_external_id: "name1",
+                    plan_uuid: "plan",
+                    service_period_start: moment.utc(items[0].InvoiceItem.ServiceStartDate),
+                    service_period_end: moment.utc(items[0].InvoiceItem.ServiceEndDate),
+                    amount_in_cents: 100,
+                    cancelled_at: undefined,
+                    prorated: false,
+                    quantity: 1,
+                    discount_amount_in_cents: -0,
+                    tax_amount_in_cents: 0,
+                    external_id: "id1",
+                    __amendmentType: ""
+                },
+                {
+                    type: "subscription",
+                    subscription_external_id: "name4",
+                    plan_uuid: "generic plan",
+                    service_period_start: moment.utc(items[2].InvoiceItem.ServiceStartDate),
+                    service_period_end: moment.utc(items[2].InvoiceItem.ServiceEndDate),
+                    amount_in_cents: 100,
+                    cancelled_at: undefined,
+                    prorated: false,
+                    quantity: 1,
+                    discount_amount_in_cents: -0,
+                    tax_amount_in_cents: 0,
+                    external_id: "id4",
+                    __amendmentType: ""
+                },
+                {
+                    type: "subscription",
+                    subscription_external_id: "name2",
+                    plan_uuid: "generic plan",
+                    service_period_start: moment.utc(proratedUsersCredit[0].InvoiceItem.ServiceStartDate),
+                    service_period_end: moment.utc(proratedUsersCredit[0].InvoiceItem.ServiceEndDate),
+                    amount_in_cents: 1000,
+                    cancelled_at: undefined,
+                    prorated: true,
+                    quantity: 10,
+                    discount_amount_in_cents: -0,
+                    tax_amount_in_cents: undefined,
+                    external_id: "id2-a",
+                    __amendmentType: ""
+                }
+            ];
+
+            var results = ItemsBuilder.processItems(items, proratedUsersCredit, [], context);
+            expect(diff(results, expected)).toEqual();
+        });
+    });
 });
