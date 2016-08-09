@@ -5,10 +5,12 @@ var logger = require("log4js").getLogger("cancellation"),
     _ = require("lodash"),
     moment = require("moment");
 
+exports.DEFAULT_UNPAID_TO_CANCEL_MONTHS = 2;
+exports.DEFAULT_NO_RENEWAL_TO_CANCEL_MONTHS = 2;
 
 var Cancellation = function () {
-    this.unpaidToCancelMonths = 2;
-    this.noRenewalToCancelMonths = 2;
+    this.unpaidToCancelMonths = exports.DEFAULT_UNPAID_TO_CANCEL_MONTHS;
+    this.noRenewalToCancelMonths = exports.DEFAULT_NO_RENEWAL_TO_CANCEL_MONTHS;
 };
 
 Cancellation.prototype.configure = function (json) {
@@ -95,25 +97,24 @@ Cancellation.prototype._downgradeAsCancel = function(invoices) {
  * into Free plan without invoice or something similar.
  */
 Cancellation.prototype._cancelNonrenewedSubscriptions = function (invoices, mToday) {
-    var subs2cancel = {},
+    var subs2Processed = {},
         self = this;
     invoices.slice().reverse() // shallow copy, traversing from the last invoice, changing the invoices
-        .forEach(invo =>
-            invo.line_items.slice().reverse()
-                .filter(i => !subs2cancel[i.subscription_external_id]) // it knows it's canceled
-                .forEach(i => {
-                    var mEndOfPeriod = moment.utc(i.service_period_end);
-                    if (i.cancelled_at) {
-                        subs2cancel[i.subscription_external_id] = i.cancelled_at;
-                    } else if (mToday.diff(mEndOfPeriod, "month")
+        .forEach(invo => {
+            var items = invo.line_items.slice().reverse();
+            for (var i = 0; i < items.length; i++) {
+                var item = items[i];
+                if (!subs2Processed[item.subscription_external_id]) {
+                    var mEndOfPeriod = moment.utc(item.service_period_end);
+                    if (!item.cancelled_at && mToday.diff(mEndOfPeriod, "month")
                                 >= self.noRenewalToCancelMonths) {
-                        // if too long no renew invoice -> cancel & remember
-                        i.cancelled_at = subs2cancel[i.subscription_external_id] = mEndOfPeriod.add(1, "second").toDate();
-                        // NOTE: this relies on the end_of_period being end of day to be the next day
-                        // but even if it wouldn't, it would just make it in the same day.
+                        // if too long no renew invoice -> cancel
+                        item.cancelled_at = mEndOfPeriod.add(1, "second").toDate();
                     }
-                })
-        );
+                    subs2Processed[item.subscription_external_id] = item.cancelled_at || item.service_period_end;
+                }
+            }
+        });
     return invoices;
 };
 
@@ -126,6 +127,9 @@ Cancellation.prototype._cancelLongDueInvoices = function (invoices, mToday) {
         var invoice = invoices[i],
             invoiceTotal = Math.round(invoice.line_items.reduce(
                             (prev, item) => prev + item.amount_in_cents, 0));
+        if (invoice.__balance === undefined) {
+            throw new VError("Missing metadata __balance!");
+        }
         if (invoiceTotal > 0 && invoice.__balance > 0 && // has outstanding balance
                 // has been unpaid for 2 or more months over due
                 mToday.diff(moment.utc(invoice.due_date), "month") >= this.unpaidToCancelMonths &&

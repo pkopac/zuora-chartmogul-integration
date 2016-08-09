@@ -1,11 +1,15 @@
 "use strict";
 /* eslint-env node, jasmine */
 
-require("log4js").configure({"levels": {"[all]": "DEBUG"}, "appenders": [{"type": "console"}]});
-
-var Cancellation = require("../cancellation.js").Cancellation;
+require("log4js").configure({
+    "levels": {"[all]": "WARN"},
+    "appenders": [{"type": "console"}]
+});
+var CancellationModule = require("../cancellation.js");
+var Cancellation = CancellationModule.Cancellation;
 var diff = require("deep-diff").diff,
     moment = require("moment");
+
 
 describe("Cancellation", function(){
     var cancellation;
@@ -19,9 +23,17 @@ describe("Cancellation", function(){
     // });
     it("Simple void invoice removed", function(){
         var result = cancellation.cancelInvoices([
-            {external_id: "A01", line_items: [
-                {amount_in_cents: 0, discount_amount_in_cents:0, quantity: 10, external_id: "ii01"}
-            ]}
+            {
+                "external_id": "A01",
+                "__balance": 0,
+                "line_items": [
+                    {
+                        "amount_in_cents": 0,
+                        "discount_amount_in_cents":0,
+                        "quantity": 10,
+                        "external_id": "ii01"
+                    }
+                ]}
         ]);
 
         expect(result).toEqual([]);
@@ -29,15 +41,15 @@ describe("Cancellation", function(){
 
     it("Simple void invoice cancels previous of its subscription, leaves alone others", function(){
         var result = cancellation.cancelInvoices([
-            {external_id: "I01", line_items: [
+            {external_id: "I01", __balance: 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
                  service_period_start: "2016-05-01", service_period_end: "2016-05-30", "external_id": "ii01"}
             ]},
-            {external_id: "I02", line_items: [
+            {external_id: "I02", __balance: 0, line_items: [
                 {subscription_external_id: "S02", amount_in_cents: 500, discount_amount_in_cents:500, quantity: 10,
                  service_period_start: "2016-05-01", service_period_end: "2016-05-30", "external_id": "ii02"}
             ]},
-            {external_id: "I05", line_items: [
+            {external_id: "I05", __balance: 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: 0, discount_amount_in_cents:0, quantity: 5,
                  service_period_start: "2016-06-01", service_period_end: "2016-06-30", "external_id": "ii03"}
             ]}
@@ -78,15 +90,15 @@ describe("Cancellation", function(){
 
     it("Simple refund invoice cancels previous of its subscription, leaves alone others", function(){
         var result = cancellation.cancelInvoices([
-            {external_id: "I01", line_items: [
+            {external_id: "I01", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
                  service_period_start: "2016-05-01", service_period_end: "2016-05-30"}
             ]},
-            {external_id: "I02", line_items: [
+            {external_id: "I02", "__balance": 0, line_items: [
                 {subscription_external_id: "S02", amount_in_cents: 500, discount_amount_in_cents:500, quantity: 10,
                  service_period_start: "2016-05-01", service_period_end: "2016-05-30"}
             ]},
-            {external_id: "I05", line_items: [
+            {external_id: "I05", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: -400, discount_amount_in_cents:0, quantity: -5,
                  __amendmentType: "RemoveProduct", prorated: true,
                  service_period_start: "2016-05-05", service_period_end: "2016-05-30"}
@@ -126,19 +138,19 @@ describe("Cancellation", function(){
 
     it("Two-item refund invoice cancels two previous of its subscription, leaves alone others", function(){
         var result = cancellation.cancelInvoices([
-            {external_id: "I01", line_items: [
+            {external_id: "I01", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
                  service_period_start: "2016-05-01", service_period_end: "2016-05-30"}
             ]},
-            {external_id: "I03", line_items: [
+            {external_id: "I03", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
                  service_period_start: "2016-06-01", service_period_end: "2016-06-30"}
             ]},
-            {external_id: "I05", line_items: [
+            {external_id: "I05", "__balance": 0, line_items: [
                 {subscription_external_id: "S02", amount_in_cents: 500, discount_amount_in_cents:500, quantity: 10,
                  service_period_start: "2016-05-01", service_period_end: "2016-05-30"}
             ]},
-            {external_id: "I07", line_items: [
+            {external_id: "I07", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: -500, discount_amount_in_cents:0, quantity: -5,
                  __amendmentType: "RemoveProduct", prorated: true,
                  service_period_start: "2016-05-01", service_period_end: "2016-05-30"},
@@ -181,24 +193,24 @@ describe("Cancellation", function(){
 
     it("Combination item refund invoice cancels two previous of its subscription, leaves alone others and reactivation", function(){
         var result = cancellation.cancelInvoices([
-            {external_id: "I01", line_items: [
+            {external_id: "I01", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
                  service_period_start: "2016-05-01", service_period_end: "2016-05-30", "external_id": "ii01"}
             ]},
-            {external_id: "I03", line_items: [
+            {external_id: "I03", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
                  service_period_start: "2016-06-01", service_period_end: "2016-06-30", "external_id": "ii02"}
             ]},
-            {external_id: "I05", line_items: [
+            {external_id: "I05", "__balance": 0, line_items: [
                 {subscription_external_id: "S02", amount_in_cents: 500, discount_amount_in_cents:500, quantity: 10,
                  service_period_start: "2016-05-01", service_period_end: "2016-05-30", "external_id": "ii03"}
             ]},
-            {external_id: "I07", line_items: [
+            {external_id: "I07", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: -1000, discount_amount_in_cents:0, quantity: -5,
                  __amendmentType: "RemoveProduct", prorated: true,
                  service_period_start: "2016-05-01", service_period_end: "2016-06-30", "external_id": "ii04"}
             ]},
-            {external_id: "I09", line_items: [
+            {external_id: "I09", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
                  service_period_start: "2016-08-01", service_period_end: "2016-08-30", "external_id": "ii05"}
             ]}
@@ -254,22 +266,22 @@ describe("Cancellation", function(){
 
     it("Combination item refund invoice cancels previous two-item invoice", function() {
         var result = cancellation.cancelInvoices([
-            {external_id: "I01", line_items: [
+            {external_id: "I01", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
                  service_period_start: "2016-05-01", service_period_end: "2016-05-30", external_id: "ii01"},
                 {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
                  service_period_start: "2016-06-01", service_period_end: "2016-06-30", external_id: "ii02"}
             ]},
-            {external_id: "I05", line_items: [
+            {external_id: "I05", "__balance": 0, line_items: [
                 {subscription_external_id: "S02", amount_in_cents: 500, discount_amount_in_cents:500, quantity: 10,
                  service_period_start: "2016-05-01", service_period_end: "2016-05-30", external_id: "ii03"}
             ]},
-            {external_id: "I07", line_items: [
+            {external_id: "I07", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: -1000, discount_amount_in_cents:0, quantity: -5,
                  __amendmentType: "RemoveProduct", prorated: true,
                  service_period_start: "2016-05-01", service_period_end: "2016-06-30", external_id: "ii04"}
             ]},
-            {external_id: "I09", line_items: [
+            {external_id: "I09", "__balance": 0, line_items: [
                 {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
                  service_period_start: "2016-08-01", service_period_end: "2016-08-30", external_id: "ii05"}
             ]}
@@ -354,4 +366,247 @@ describe("Cancellation", function(){
         }];
         expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
     });
+
+    it("Shortly overdue invoices are NOT canceled", function() {
+        cancellation = new Cancellation();
+        cancellation.configure({unpaidToCancelMonths: 2, noRenewalToCancelMonths: 10000});
+
+        var result = cancellation._cancelLongDueInvoices([
+            {external_id: "I01", due_date: "2016-06-01", __balance: 1000, line_items: [
+                {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
+                 service_period_start: "2016-05-01", service_period_end: "2016-05-30", external_id: "ii01"},
+                {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
+                 service_period_start: "2016-06-01", service_period_end: "2016-06-30", external_id: "ii02"}
+            ]}
+        ], moment.utc("2016-07-30"));
+
+        const EXPECTED = [{
+            "external_id": "I01",
+            "due_date": "2016-06-01",
+            "__balance": 1000,
+            "line_items": [
+                {
+                    "subscription_external_id": "S01",
+                    "amount_in_cents": 500,
+                    "discount_amount_in_cents": 0,
+                    "quantity": 5,
+                    "service_period_start": "2016-05-01",
+                    "service_period_end": "2016-05-30",
+                    "external_id": "ii01"
+                },
+                {
+                    "subscription_external_id": "S01",
+                    "amount_in_cents": 500,
+                    "discount_amount_in_cents": 0,
+                    "quantity": 5,
+                    "service_period_start": "2016-06-01",
+                    "service_period_end": "2016-06-30",
+                    "external_id": "ii02"
+                }
+            ]
+        }];
+        expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
+    });
+
+    it("Canceling non-renewal doesn't affect regular invoices.", function() {
+        cancellation = new Cancellation();
+        cancellation.configure({unpaidToCancelMonths: 10000, noRenewalToCancelMonths: 1});
+
+        var result = cancellation._cancelNonrenewedSubscriptions([
+            {external_id: "I01", due_date: "2016-06-01", __balance: 0, line_items: [
+                {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
+                 service_period_start: "2016-05-01", service_period_end: "2016-05-30", external_id: "ii01"}
+            ]},
+            {external_id: "I02", due_date: "2016-07-01", __balance: 0, line_items: [
+                {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
+                 service_period_start: "2016-06-01", service_period_end: "2016-06-30", external_id: "ii02"}
+            ]}
+        ], moment.utc("2016-07-29")); // just less than 1 month
+
+        const EXPECTED = [
+            {
+                "external_id": "I01",
+                "due_date": "2016-06-01",
+                "__balance": 0,
+                "line_items": [
+                    {
+                        "subscription_external_id": "S01",
+                        "amount_in_cents": 500,
+                        "discount_amount_in_cents": 0,
+                        "quantity": 5,
+                        "service_period_start": "2016-05-01",
+                        "service_period_end": "2016-05-30",
+                        "external_id": "ii01"
+                    }
+                ]},
+            {
+                "external_id": "I02",
+                "due_date": "2016-07-01",
+                "__balance": 0,
+                "line_items": [
+                    {
+                        "subscription_external_id": "S01",
+                        "amount_in_cents": 500,
+                        "discount_amount_in_cents": 0,
+                        "quantity": 5,
+                        "service_period_start": "2016-06-01",
+                        "service_period_end": "2016-06-30",
+                        "external_id": "ii02"
+                    }
+                ]}
+        ];
+        expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
+    });
+
+    it("Non-renewal means cancel.", function() {
+        cancellation = new Cancellation();
+        cancellation.configure({unpaidToCancelMonths: 10000, noRenewalToCancelMonths: 1});
+
+        var result = cancellation._cancelNonrenewedSubscriptions([
+            {external_id: "I01", due_date: "2016-06-01", __balance: 0, line_items: [
+                {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
+                 service_period_start: "2016-05-01", service_period_end: "2016-05-30", external_id: "ii01"}
+            ]},
+            {external_id: "I02", due_date: "2016-07-01", __balance: 0, line_items: [
+                {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
+                 service_period_start: "2016-06-01", service_period_end: "2016-06-30", external_id: "ii02"}
+            ]}
+        ], moment.utc("2016-07-30")); // just less than 1 month
+
+        const EXPECTED = [
+            {
+                "external_id": "I01",
+                "due_date": "2016-06-01",
+                "__balance": 0,
+                "line_items": [
+                    {
+                        "subscription_external_id": "S01",
+                        "amount_in_cents": 500,
+                        "discount_amount_in_cents": 0,
+                        "quantity": 5,
+                        "service_period_start": "2016-05-01",
+                        "service_period_end": "2016-05-30",
+                        "external_id": "ii01"
+                    }
+                ]},
+            {
+                "external_id": "I02",
+                "due_date": "2016-07-01",
+                "__balance": 0,
+                "line_items": [
+                    {
+                        "subscription_external_id": "S01",
+                        "amount_in_cents": 500,
+                        "discount_amount_in_cents": 0,
+                        "quantity": 5,
+                        "service_period_start": "2016-06-01",
+                        "service_period_end": "2016-06-30",
+                        "external_id": "ii02",
+                        "cancelled_at": new Date("2016-06-30T00:00:01.000Z")
+                    }
+                ]}
+        ];
+        expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
+    });
+
+    it("Prorated + new term invoice not canceled as non-renewal.", function() {
+        cancellation = new Cancellation();
+        cancellation.configure({unpaidToCancelMonths: 10000, noRenewalToCancelMonths: 1});
+
+        var result = cancellation._cancelNonrenewedSubscriptions([
+            {
+                "external_id": "I01",
+                "date": "2016-05-20T09:46:37+00:00",
+                "currency": "USD",
+                "due_date": "2016-05-20T00:00:00+00:00",
+                "line_items": [
+                    {
+                        "type": "subscription",
+                        "subscription_external_id": "S01",
+                        "plan_uuid": "P01",
+                        "service_period_start": "2015-10-15T00:00:00+00:00",
+                        "service_period_end": "2016-05-19T23:59:59+00:00",
+                        "amount_in_cents": 321640,
+                        "prorated": true,
+                        "quantity": 30,
+                        "discount_amount_in_cents": 0,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "0123"
+                    },
+                    {
+                        "type": "subscription",
+                        "subscription_external_id": "S01",
+                        "plan_uuid": "P01",
+                        "service_period_start": "2016-05-20T00:00:01.000Z",
+                        "service_period_end": "2017-05-19T23:59:59+00:00",
+                        "amount_in_cents": 4644000,
+                        "prorated": false,
+                        "quantity": 258,
+                        "discount_amount_in_cents": 0,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "0124"
+                    }
+                ]
+            }
+        ], moment.utc("2016-07-30")); // too long for proration, but before the next term
+
+        const EXPECTED = [
+            {
+                "external_id": "I01",
+                "date": "2016-05-20T09:46:37+00:00",
+                "currency": "USD",
+                "due_date": "2016-05-20T00:00:00+00:00",
+                "line_items": [
+                    {
+                        "type": "subscription",
+                        "subscription_external_id": "S01",
+                        "plan_uuid": "P01",
+                        "service_period_start": "2015-10-15T00:00:00+00:00",
+                        "service_period_end": "2016-05-19T23:59:59+00:00",
+                        "amount_in_cents": 321640,
+                        "prorated": true,
+                        "quantity": 30,
+                        "discount_amount_in_cents": 0,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "0123"
+                    },
+                    {
+                        "type": "subscription",
+                        "subscription_external_id": "S01",
+                        "plan_uuid": "P01",
+                        "service_period_start": "2016-05-20T00:00:01.000Z",
+                        "service_period_end": "2017-05-19T23:59:59+00:00",
+                        "amount_in_cents": 4644000,
+                        "prorated": false,
+                        "quantity": 258,
+                        "discount_amount_in_cents": 0,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "0124"
+                    }
+                ]
+            }
+        ];
+        expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
+    });
+
+    describe("Secondary", function(){
+        it("Configure sets defaults if not given in json", function(){
+            var tested = new Cancellation();
+            tested.configure();
+            expect(tested.unpaidToCancelMonths).toEqual(CancellationModule.DEFAULT_UNPAID_TO_CANCEL_MONTHS);
+            expect(tested.noRenewalToCancelMonths).toEqual(CancellationModule.DEFAULT_NO_RENEWAL_TO_CANCEL_MONTHS);
+
+            tested = new Cancellation();
+            tested.configure({unpaidToCancelMonths: 15213});
+            expect(tested.unpaidToCancelMonths).toEqual(15213);
+            expect(tested.noRenewalToCancelMonths).toEqual(CancellationModule.DEFAULT_NO_RENEWAL_TO_CANCEL_MONTHS);
+
+            tested = new Cancellation();
+            tested.configure({unpaidToCancelMonths: 15213, noRenewalToCancelMonths: 1111});
+            expect(tested.unpaidToCancelMonths).toEqual(15213);
+            expect(tested.noRenewalToCancelMonths).toEqual(1111);
+        });
+
+    });
+
 });
