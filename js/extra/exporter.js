@@ -83,19 +83,30 @@ function saveToMongo(url, collection, mrr) {
         .finally(() => db && db.close());
 }
 
-Exporter.prototype.run_subscriptions = function (dataSource, exportType, outputFile) {
+//TODO: refactor common code into one function
+Exporter.prototype.run_subscriptions = function (dataSource, exportType, outputFile, pwd) {
     if (! (exportType in this.SUPPORTED_TYPES)) {
         throw new Error("Unsupported type: " + exportType + " Supported types: " + Object.keys(this.SUPPORTED_TYPES));
     }
-
+    if (exportType === "mongo") {
+        throw new Error("Only MRR Mongo export implemented.");
+    }
+    if (outputFile && !outputFile.startsWith("/") && pwd) {
+        path.join(pwd, outputFile);
+    }
     return fetchAllTheMetrics(dataSource, exportType, outputFile, "listAllSubscriptions");
 };
 
-Exporter.prototype.run_activities = function (dataSource, exportType, outputFile) {
+Exporter.prototype.run_activities = function (dataSource, exportType, outputFile, pwd) {
     if (! (exportType in this.SUPPORTED_TYPES)) {
         throw new Error("Unsupported type: " + exportType + " Supported types: " + Object.keys(this.SUPPORTED_TYPES));
     }
-
+    if (exportType === "mongo") {
+        throw new Error("Only MRR Mongo export implemented.");
+    }
+    if (outputFile && !outputFile.startsWith("/") && pwd) {
+        path.join(pwd, outputFile);
+    }
     return fetchAllTheMetrics(dataSource, exportType, outputFile, "listAllActivities");
 };
 
@@ -115,10 +126,6 @@ Exporter.prototype.run_mrr = function (dataSource, exportType, outputFile, pwd, 
 
     if (exportType === "mongo" && !(this.mongo && this.mongo.collection && this.mongo.url)) {
         throw new Error("There's no export.mongo.url or export.mongo.collection for MongoDB connection in config file!");
-    }
-
-    if (exportType === "mongo" && exportType !== "mrr") {
-        throw new Error("Only MRR Mongo export implemented.");
     }
 
     if (outputFile && !outputFile.startsWith("/") && pwd) {
