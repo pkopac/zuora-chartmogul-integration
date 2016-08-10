@@ -2,7 +2,7 @@
 
 var logger = require("log4js").getLogger("invoiceBuilder"),
     VError = require("verror"),
-    _ = require("lodash"),
+    // _ = require("lodash"),
     moment = require("moment"),
     ItemsBuilder = require("./itemsBuilder.js").ItemsBuilder,
     Invoice = require("./importer.js").Invoice;
@@ -168,7 +168,7 @@ InvoiceBuilder.addPayments = function(zuoraPayments, invoice, type) {
                 type: type.toLowerCase(),
                 result: p.Status === "Processed" ? "successful" : "failed",
                 // because one payment number can be assigned to multiple invoices
-                external_id: (type === "Payment" ? p.PaymentNumber : p.RefundNumber) + "-" + payment.Invoice.InvoiceNumber
+                external_id: (type === "Payment" ? p.PaymentNumber : p.RefundNumber) + "-" + (payment.Invoice.InvoiceNumber || payment.CreditBalanceAdjustment.Id)
             };
 
             if (transaction.result === "successful") {

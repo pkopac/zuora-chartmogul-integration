@@ -36,5 +36,11 @@ Uses ```istanbul``` for coverage and ```jasmine``` for definition of unit tests.
 NodeJS application + custom wrapper libs for both services. The Zuora lib is part of this project.
 REST APIs of both with transformations (most of business logic) to load data.
 
+### Known Issues
+* One-time payments not supported
+* If you have partial refunds, cashflow is not correct.
+* Zuora data export sometimes hangs socket, sometimes sends incomplete data - reason/culprit unknown
+* If canceling multiple invoices of the same subscription, the first is canceled and consequent removed to prevent false reactivation. Refunds through credit balance adjustment on the account attached on such removed invoices are lost.
+
 ### License
 GNU GPL v3.0

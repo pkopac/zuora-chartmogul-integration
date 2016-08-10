@@ -255,20 +255,21 @@ Transformer.prototype.makeInvoices = function(
                 if (cbas && cbas.length) {
                     invoicesToImport = PendingRefunds.addHangingRefunds(cbas, invoicesToImport);
                 }
+
+
+                invoicesToImport = self.cancellation.cancelInvoices(invoicesToImport);
+
+                /* Any two invoices for the same term, annulling each other can be omitted.
+                 * It's after canceling, because that might be better way to deal with such invoices. */
+                invoicesToImport = self.removeAnnullingInvoices(invoicesToImport);
+
+                invoicesToImport = self.removeNonsenseInvoices(invoicesToImport);
+
+                invoicesToImport = self.shiftDates(invoicesToImport);
+
             } catch(err) {
-                throw new VError(err, "Failed to add extra-invoice refunds to account " + accountId);
+                throw new VError(err, "Failed to process account " + accountId);
             }
-
-            invoicesToImport = self.cancellation.cancelInvoices(invoicesToImport);
-
-            /* Any two invoices for the same term, annulling each other can be omitted.
-             * It's after canceling, because that might be better way to deal with such invoices. */
-            invoicesToImport = self.removeAnnullingInvoices(invoicesToImport);
-
-            invoicesToImport = self.removeNonsenseInvoices(invoicesToImport);
-
-            invoicesToImport = self.shiftDates(invoicesToImport);
-
             /* Various checks */
             invoicesToImport
                 .filter(invoice => invoice.line_items.some(line_item => !line_item.quantity))

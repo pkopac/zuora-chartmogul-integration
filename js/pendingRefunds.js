@@ -8,72 +8,81 @@ var logger = require("log4js").getLogger("pendingRefunds"),
 
 var PendingRefunds = {};
 
-PendingRefunds.addHangingRefunds = function(pendingCBARefunds, invoices) {
+/**
+ * Some credit balance adjustments are done outside of invoices.
+ * It's not possible to match them directly, so let's match them heuristically by date and amount.
+ * @param cbas - credit balance adjustments in Zuora format
+ * @param invoices - converted invoices in CM format
+ */
+PendingRefunds.addHangingRefunds = function(cbas, invoices) {
     // sort without mutating original, iterate in reverse order
-    invoices.reverse();
-    for (var i = 0; i < invoices.length; i++) {
-        let invoice = invoices[i];
-        let result = PendingRefunds.addRefundsFromStandaloneCBA(pendingCBARefunds, invoice);
-        pendingCBARefunds = result[0];
-        let additionalInvoice = result[1];
-        if (additionalInvoice) {
-            invoices.splice(++i, 0, additionalInvoice); // add invoice after this one
+    var invoicesCopy = invoices.slice().reverse();
+    for (var i = 0; i < invoicesCopy.length; i++) {
+        if (!cbas || !cbas.length) {
+            return invoices;
         }
+
+        let invoice = invoicesCopy[i],
+            result = PendingRefunds._addRefundsFromStandaloneCBA(cbas, invoice);
+
+        cbas = result.cbas;
+        // if (result.additionalInvoice) {
+        //     invoices.splice(++i, 0, additionalInvoice); // add invoice after this one
+        // }
     }
-    // we need to re-sort, since we possibly added some invoices and reverted order
-    invoices.reverse();
-    if (pendingCBARefunds && pendingCBARefunds.length) {
-        throw new VError("Pending extra-invoice refunds " + JSON.stringify(pendingCBARefunds));
+    // TODO: if adding splitted invoices reimplemented, we should rather _.sortBy than copy the array
+    // and also make sure that INV00xxxxx-postfix is sorted correctly
+    if (cbas && cbas.length) {
+        logger.error(cbas);
+        logger.error("Invoices", invoices.map(i => i.external_id));
+        throw new VError("Pending extra-invoice refunds!");
     }
     return invoices;
 };
 
 /**
- * Some credit balance adjustments are done outside of invoices.
- * It's not possible to match them directly, so let's match them heuristically
- * by date and amount.
- * Tries to match first adjustment to invoice by date.
+ * Tries to apply one of the available credit balance adjustments as refund to the selected invoice.
+ * Matching adjustments to invoice by date.
  */
-PendingRefunds.addRefundsFromStandaloneCBA = function(cbas, invoice) {
-    if (!cbas || !cbas.length) {
-        return [cbas];
-    }
-    const invoiceDateM = moment.utc(invoice.date),
+PendingRefunds._addRefundsFromStandaloneCBA = function(cbas, invoice) {
+    // logger.trace(JSON.stringify(invoice), invoice.line_items)
+    Object.keys(invoice).map(k => logger.trace(k, invoice[k]));
+    var invoiceDateM = moment.utc(invoice.date),
         invoiceTotal = invoice.line_items.reduce(function (prev, cur) {
             return prev + cur.amount_in_cents;
         }, 0);
 
-    if (invoiceTotal <= 0) { // can't refund an invoice that has 0 amount to be paid
-        return [cbas];
+    // can't refund an invoice that has 0 amount to be paid
+    // consequence: if the refund is added and downgrade/cancellation invoice removed later, it stays on the original, paid invoice
+    if (invoiceTotal <= 0) {
+        return {cbas};
     }
+
     /* Same date or later and same amount => matches */
     let found = cbas.find(cba => moment.utc(cba.CreditBalanceAdjustment.CreatedDate).isSameOrAfter(invoiceDateM));
     if (!found) {
-        return [cbas];
+        return {cbas};
     }
 
     logger.debug("Found extra-invoice refund %s from credit, attaching it to invoice %s.",
         found.Refund.RefundNumber, invoice.external_id);
-    let refundedAmount = Math.round(found.CreditBalanceAdjustment.Amount * 100),
-        filteredCbas = cbas.filter(cba =>
-            cba.CreditBalanceAdjustment.Id !== found.CreditBalanceAdjustment.Id);
+    let refundedAmount = Math.round(found.CreditBalanceAdjustment.Amount * 100);
+    cbas = cbas.filter(cba =>
+        cba.CreditBalanceAdjustment.Id !== found.CreditBalanceAdjustment.Id);
 
     // matches exactly => just add refund
-    if (refundedAmount == invoiceTotal) {
+    if (refundedAmount === invoiceTotal) {
         InvoiceBuilder.addPayments([found], invoice, "Refund");
-        return [filteredCbas];
-
-    // split invoice, because chartMogul doesn't support partial refund
-    // !!! Splitting turned off, because it generates unreal MRR in CM upgrades & downgrades instead of cancel.
     } else if (refundedAmount < invoiceTotal) {
+        // TODO: maybe split invoice in some other way
+        // !!! Splitting turned off, because it generates unreal MRR in CM upgrades & downgrades instead of cancel.
         // var newInvoice = Splitter.splitInvoice(invoice, refundedAmount);
-        // InvoiceBuilder.addPayments([found], invoice, "Refund");
-        return [filteredCbas];
-     // split adjustment, because it is more than there's on the invoice
+        InvoiceBuilder.addPayments([found], invoice, "Refund");
     } else {
-        filteredCbas.push(Splitter.splitAdjustment(invoice, refundedAmount, invoiceTotal, found));
-        return [filteredCbas];
+        // split adjustment, because it is more than there's on the invoice
+        cbas.push(Splitter.splitAdjustment(invoice, refundedAmount, invoiceTotal, found));
     }
+    return {cbas};
 };
 
 exports.PendingRefunds = PendingRefunds;
