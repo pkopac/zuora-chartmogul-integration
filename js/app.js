@@ -29,7 +29,7 @@ function printHelpAndExit() {
     console.error("  -e <output type>, --export <>         Download MRR activity data from Chartmogul. Output: [csv | json | mongo ]");
     console.error("  -h, --help                            Show this help message.");
     console.error("  -i, --interactive                     Run interactive ZOQL console.");
-    console.error("  -o <file>, --output <file>            Path to dump data (use with -q or -m).");
+    console.error("  -o <file>, --output <file>            Path to dump data (use with -q or -e).");
     console.error("  -q <query>, --query <query>           Run query (use with -o).");
     console.error("  -t <type>, --type <type>              Type of export [activities | subscriptions | mrr ] (use with -e).");
     console.error("  -p '{\"start-date\": \"YYYY-MM-DD\"}'     Parameters for export as JSON.");

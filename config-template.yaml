@@ -14,18 +14,24 @@
     # Subscriptions that didn't get a renewal invoice in under x months are canceled
     # after their term.
     noRenewalToCancelMonths: 2
+  # Filtering on transformation & CM settings besides credentials
   transformer:
+    # Default: false = don't load customers unless they have at least one non-zero non-free invoiced subscription
     includeFree: false
+    # Name of data source in ChartMogul
     dataSource: "Zuora-00"
+    # Filtering of customer accounts - useful if you want to test or need to omit some problematic ones.
     # accounts:
     #   exclude:
     #     - ""
     #   include:
     #     - ""
+  # Optional configuration if you'll be using export
   export:
     mongo:
       url: "mongodb://localhost:21017/db"
       collection: ""
+  # Global settings for logger, see log4js documentation. Modules are tagged, eg. "zuora", "itemsBuilder"
   log4js:
     levels:
       [all]: "DEBUG"
