@@ -385,6 +385,8 @@ Transformer.prototype.shiftDates = function(invoices) {
  * Uses the BillToContact pre-joined info to load necessary customers.
  * Depends on which InvoiceItems have been filtered.
  * Can process grouped items or array of customers, depending on settings.
+ * @param customers - either array of InvoiceItems with pre-joined Account info OR
+ *                    result of groupBy accountId with Account information.
  * @returns promise for all customers insertion
  */
 Transformer.prototype.importCustomers = function (customers) {

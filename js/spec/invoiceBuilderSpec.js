@@ -268,4 +268,195 @@ describe("invoiceBuilder", function() {
             expect(creditAdjusted).toEqual(0);
         });
     });
+
+    describe("generates invoices", function(){
+        const PLANS_BY_ID = {zuora_plan_id: "plan_cm_uuid"};
+
+        const PAID_SIMPLEST_ITEM = {
+            Amendment: {
+                Type: "UpdateProduct"
+            },
+            Invoice: {
+                InvoiceNumber: "INVO-123",
+                Amount : 10,
+                PostedDate: "2012-12-07T14:53:49+0000",
+                DueDate: "2013-01-06"
+            },
+            ProductRatePlan: {
+                Id: "zuora_plan_id"
+            },
+            InvoiceItem: {
+                ChargeAmount: 10,
+                Quantity: 1,
+                ChargeName: "Users",
+                Id: "ITEM-001",
+                "ServiceEndDate": "2013-03-09",
+                "ServiceStartDate": "2012-12-10"
+            },
+            Account: {
+                Currency: "USD"
+            },
+            Subscription: {
+                Name: "SUB-001"
+            }
+        };
+
+        it("simple unpaid invoice for $10", function(){
+
+            const invoiceItems = [PAID_SIMPLEST_ITEM],
+                itemAdjsByInvoice = [],
+                invoiceAdjsByInvoice = [],
+                creditAdjsByInvoice = [],
+                paymentsByInvoice = [],
+                refundsByInvoice = [],
+                EXPECTED = {
+                    "external_id": "INVO-123",
+                    "date": "2012-12-07T14:53:49+00:00",
+                    "currency": "USD",
+                    "due_date": "2013-01-06T00:00:00+00:00",
+                    "line_items": [
+                        {
+                            "type": "subscription",
+                            "subscription_external_id": "SUB-001",
+                            "plan_uuid": "plan_cm_uuid",
+                            "service_period_start": "2012-12-10T00:00:00+00:00",
+                            "service_period_end": "2013-03-09T23:59:59+00:00", // end of period to end of day
+                            "amount_in_cents": 1000,
+                            "prorated": false,
+                            "quantity": 1,
+                            "discount_amount_in_cents": 0,
+                            "external_id": "ITEM-001",
+                            "__amendmentType": "UpdateProduct"
+                        }
+                    ],
+                    "transactions": []
+                };
+
+            var invoice = InvoiceBuilder.buildInvoice("INVO-123",
+                invoiceItems,
+                PAID_SIMPLEST_ITEM.Invoice.PostedDate,
+                PAID_SIMPLEST_ITEM.Invoice.DueDate,
+                PAID_SIMPLEST_ITEM.Account.Currency,
+                itemAdjsByInvoice,
+                invoiceAdjsByInvoice,
+                creditAdjsByInvoice,
+                paymentsByInvoice,
+                refundsByInvoice,
+                PLANS_BY_ID
+            );
+
+            expect(JSON.stringify(diff(EXPECTED, invoice), null, 4)).toEqual();
+        });
+
+        it("prorated downgrade", function(){
+
+            const PRORATED_CREDIT = {
+                Invoice: {
+                    InvoiceNumber: "INVO-123",
+                    Amount : -10,
+                    PostedDate: "2012-12-07T14:53:49+0000",
+                    DueDate: "2013-01-06"
+                },
+                InvoiceItem: {
+                    ChargeAmount: -20,
+                    Quantity: 2,
+                    ChargeName: "Users -- Proration Credit",
+                    Id: "ITEM-001",
+                    "ServiceEndDate": "2013-03-09",
+                    "ServiceStartDate": "2012-12-10"
+                },
+                Account: {
+                    AccountNumber: "whatever",
+                    Currency: "USD"
+                },
+                Subscription: {
+                    Name: "SUB-001"
+                },
+                ProductRatePlan: {
+                    Id: "zuora_plan_id"
+                },
+                Amendment: {
+                    Type: "UpdateProduct"
+                }
+            };
+
+            const PRORATED_DOWNGRADE_ITEM = {
+                Invoice: {
+                    InvoiceNumber: "INVO-123",
+                    Amount : -10,
+                    PostedDate: "2012-12-07T14:53:49+0000",
+                    DueDate: "2013-01-06"
+                },
+                InvoiceItem: {
+                    ChargeAmount: 10,
+                    Quantity: 1,
+                    ChargeName: "Users -- Proration",
+                    Id: "ITEM-001",
+                    "ServiceEndDate": "2013-03-09",
+                    "ServiceStartDate": "2013-02-01"
+                },
+                Account: {
+                    AccountNumber: "whatever",
+                    Currency: "USD"
+                },
+                Subscription: {
+                    Name: "SUB-001"
+                },
+                ProductRatePlan: {
+                    Id: "zuora_plan_id"
+                },
+                Amendment: {
+                    Type: "UpdateProduct"
+                }
+            };
+
+            const invoiceItems = [PRORATED_CREDIT, PRORATED_DOWNGRADE_ITEM],
+                itemAdjsByInvoice = [],
+                invoiceAdjsByInvoice = [],
+                creditAdjsByInvoice = [],
+                paymentsByInvoice = [],
+                refundsByInvoice = [],
+                EXPECTED = {
+                    "external_id": "INVO-123",
+                    "date": "2012-12-07T14:53:49+00:00",
+                    "currency": "USD",
+                    "due_date": "2013-01-06T00:00:00+00:00",
+                    "line_items": [
+                        {
+                            "type": "subscription",
+                            "subscription_external_id": "SUB-001",
+                            "plan_uuid": "plan_cm_uuid",
+                            "service_period_start": "2013-02-01T00:00:00+00:00",
+                            "service_period_end": "2013-03-09T23:59:59+00:00", // end of period to end of day
+                            "amount_in_cents": -1000,
+                            "prorated": true,
+                            "quantity": -1,
+                            "discount_amount_in_cents": 0,
+                            "external_id": "ITEM-001",
+                            "__amendmentType": "UpdateProduct"
+                        }
+                    ],
+                    "transactions": []
+                };
+
+            var invoice = InvoiceBuilder.buildInvoice("INVO-123",
+                invoiceItems,
+                PAID_SIMPLEST_ITEM.Invoice.PostedDate,
+                PAID_SIMPLEST_ITEM.Invoice.DueDate,
+                PAID_SIMPLEST_ITEM.Account.Currency,
+                itemAdjsByInvoice,
+                invoiceAdjsByInvoice,
+                creditAdjsByInvoice,
+                paymentsByInvoice,
+                refundsByInvoice,
+                PLANS_BY_ID
+            );
+
+            expect(JSON.stringify(diff(EXPECTED, invoice), null, 4)).toEqual();
+        });
+
+        //TODO: two invoices with one payment assigned to both
+        //TODO: partial payment
+        //TODO: partial refund
+    });
 });
