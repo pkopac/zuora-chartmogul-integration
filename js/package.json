@@ -35,5 +35,9 @@
         "request-promise-any": "~1.0.2",
         "verror": "~1.6.1",
         "yamljs": "^0.2.8"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git://github.com/samepage-labs/zuora-chartmogul-integration.git"
     }
 }

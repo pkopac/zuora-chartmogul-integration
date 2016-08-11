@@ -34,15 +34,26 @@ var Exporter = function() {
             delete entry.customer_external_id;
             return entry; },
         subscriptions: entry => {
-            delete entry.customer_external_id;
-            return entry; }
+            return {
+                "startDate": new Date(entry["start-date"]),
+                "endDate": new Date(entry["end-date"]),
+                "billingCycle": entry["billing-cycle"],
+                "billingCycleCount": entry["billing-cycle-count"],
+                "currency": entry["currency"],
+                "currencySign": entry["currency-sign"],
+                "plan": entry["plan"],
+                "quantity": entry["quantity"],
+                "mrr": entry["mrr"],
+                "arr": entry["arr"],
+                "status": entry["status"]
+            }; }
     };
     /* How the data is indexed in MongoDB */
     this.MONGO_ID = {
         mrr: entry => {return new Date(entry.date); },
         all: entry => {return new Date(entry.date); },
         activities: entry => {return entry.customer_external_id; },
-        subscriptions: entry => {return entry.customer_external_id; }
+        subscriptions: entry => {return {customer: entry.customer_external_id, subscription: entry.id}; }
     };
 };
 
@@ -138,19 +149,20 @@ function fetchAllTheThings(dataSource, action) {
         });
 }
 
-function saveToMongo(url, collection, id, transform, mrr) {
+function saveToMongo(url, collection, id, transform, cmData) {
     var MongoClient = require("mongodb").MongoClient,
         db;
 
     return Q(MongoClient.connect(url))
-        .then(connection => Q.all([db = connection, Q.ninvoke(db, "collection", collection), mrr]))
+        .then(connection => Q.all([db = connection, Q.ninvoke(db, "collection", collection), cmData]))
         .spread((db, col, data) => {
             var bulk = col.initializeUnorderedBulkOp();
-            data.entries.forEach(entry => {
-                bulk.find({_id: id(entry)})
-                    .upsert()
-                    .updateOne({$set: transform(entry)});
-            });
+            (Array.isArray(data.entries) ? data.entries : data)
+                .forEach(entry => {
+                    bulk.find({_id: id(entry)})
+                        .upsert()
+                        .updateOne({$set: transform(entry)});
+                });
             return bulk.execute();
         })
         .then(bulk => logger.info("Upload completed: ", bulk.isOk()))
