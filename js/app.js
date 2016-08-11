@@ -145,7 +145,7 @@ function runExport(configuration, fileType, outputFile, pwd, exportType, params)
         dataSource = configuration.transformer.dataSource;
     }
     logger.info("Export of %s to run now...", exportType);
-    exporter["run_" + exportType](dataSource, fileType, outputFile, pwd, params)
+    exporter.run(exportType, dataSource, fileType, outputFile, pwd, params)
         .done();
 }
 

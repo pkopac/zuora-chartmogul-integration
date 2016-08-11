@@ -30,7 +30,13 @@
   export:
     mongo:
       url: "mongodb://localhost:21017/db"
-      collection: ""
+      collections:
+        # Names of collections to which different export data will be saved
+        activities: "cmActivities"
+        all: "cmAll"
+        mrr: "cmMrr"
+        subscriptions: "cmSubscriptions"
+
   # Global settings for logger, see log4js documentation. Modules are tagged, eg. "zuora", "itemsBuilder"
   log4js:
     levels:
