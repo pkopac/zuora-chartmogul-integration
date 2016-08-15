@@ -101,7 +101,7 @@ function runQuery(configuration, query, outputFile) {
 
 function runTransformation(configuration, dry, update) {
     var loader = new Loader();
-    loader.configure(configuration.zuora);
+    loader.configure(configuration.zuora, configuration.loader);
 
     var Importer;
     if (dry) {

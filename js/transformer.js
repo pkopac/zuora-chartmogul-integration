@@ -18,6 +18,9 @@ var Transformer = function(loader, importer, cancellation) {
     this.cancellation = cancellation;
 
     this.includeFree = false;
+
+    var customId = this.loader.customId;
+    this.accountIdGetter = function(c) {return c.Account[customId] || c.Account.AccountNumber; };
 };
 
 /**
@@ -78,7 +81,7 @@ Transformer.prototype.groupInsertPlansAndCustomers = function (
                   _.groupBy(creditAdjs,
                             p => p.Invoice.InvoiceNumber),
                   _.groupBy(creditAdjs.filter(a => a.Refund.RefundNumber !== "" && a.Invoice.InvoiceNumber === ""),
-                            p => p.Account.SamepageId__c || p.Account.AccountNumber)
+                            self.accountIdGetter)
               ]);
 };
 
@@ -320,7 +323,7 @@ Transformer.prototype.configure = function (json) {
 
 
 /**
- * Groups by tenantId (SamepageId__c field in Zuora) or Zuora Account ID.
+ * Groups by tenantId (AccountId field in Zuora) or Zuora Account ID.
  * Filters by include/exclude list. Removes FREE-only accounts (don't affect MRR).
  * @return map by accountId to array of items
  */
@@ -337,8 +340,7 @@ Transformer.prototype.filterAndGroupItems = function (invoiceItems) {
                 .filter(i => i.Invoice.Status === "Posted") //remove invoices that were canceled/just drafted
                 .filter(i => i.InvoiceItem.AccountingCode !== "FREE") //remove free items
                 .filter(i => !self.excludeInvoices || !self.excludeInvoices.has(i.Invoice.InvoiceNumber)), //remove blacklisted invoices
-            (rec) =>
-                rec.Account.SamepageId__c || rec.Account.AccountNumber);
+                        self.accountIdGetter);
 
     var filteredItemsByAccount = {};
     Object.keys(itemsByAccountId)
@@ -394,10 +396,8 @@ Transformer.prototype.importCustomers = function (customers) {
     if (Array.isArray(customers)) {
         return self.importer.insertCustomers(
             customers.filter(c => c.Account.Name)
-                .filter(c => c.Account.SamepageId__c || c.Account.AccountNumber)
-                .map(c => {
-                    return [c.Account.SamepageId__c || c.Account.AccountNumber, c];
-                })
+                .filter(self.accountIdGetter)
+                .map(c => [self.accountIdGetter(c), c])
             );
     } else {
         return self.importer.insertCustomers(Object.keys(customers)

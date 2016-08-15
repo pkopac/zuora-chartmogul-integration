@@ -7,6 +7,9 @@
     username: ""
     password: ""
     production: true
+  loader:
+    # If you're using custom ID on Accounts in Zuora, type the field name inc. __c here:
+    customId: false
   # Optional settings
   cancellation:
     # Unpaid invoices due more than x months are considered canceled.

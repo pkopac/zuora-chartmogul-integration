@@ -1,9 +1,10 @@
 "use strict";
 /* eslint-env node, jasmine */
 
-var Importer = require("../importer.js").Importer;
+// var Importer = require("../importer.js").Importer;
 var Transformer = require("../transformer.js").Transformer;
 var diff = require("deep-diff").diff;
+//var logger = require("log4js").getLogger("spec");
 
 describe("Transformer", function(){
     it("inserts one customer per account", function(){
@@ -41,7 +42,6 @@ describe("Transformer", function(){
         var tested = new Transformer(loader, importer);
 
         var result = tested.filterAndGroupItems(ITEMS);
-
         expect(result[ACCOUNT1])
             .toEqual([ACC1_ITEM2]);
         expect(result[ACCOUNT2])
@@ -58,5 +58,14 @@ describe("Transformer", function(){
         var call = tested.filterAndGroupItems.bind(tested, ITEMS.concat(badItems));
 
         expect(call).toThrowError("Missing data from Zuora!");
+    });
+
+    describe("Secondary", function(){
+        it("custom Account ID is propagated from loader settings", function(){
+            var tested = new Transformer({customId: "blabla"}, {});
+            const TEST_ITEM = {InvoiceItem: {AccountingCode: "NON_FREE"}, Account: {blabla: ACCOUNT1}, Invoice: {Amount : 10, Status: "Posted"}, Subscription: {}};
+            var result = tested.filterAndGroupItems([TEST_ITEM]);
+            expect(diff({"acc1": [TEST_ITEM]}, result)).toEqual();
+        });
     });
 });

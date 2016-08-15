@@ -3,18 +3,21 @@
 var ZuoraAqua = require("./zuora.js").ZuoraAqua;
 
 var Loader = function() {
+    this.customId = null;
 };
 
 /**
- * Class contains ZOQLs for export of invoice-related data.
- * Depends on custom field Account.SamepageId__c!
+ * Class contains ZOQLs for import of invoice-related data.
  * Serves as reference to the incoming data (ZOQL => CSV => JSON keep structure),
  * Fields sorted alphabetically for convenience, but in JSON it doesn't matter.
  * Zuora AQuA time format is ISO 8601 with UTC timezone.
  */
-Loader.prototype.configure = function(json) {
+Loader.prototype.configure = function(aquaConfig, loaderConfig) {
     this.aqua = new ZuoraAqua();
-    this.aqua.configure(json);
+    this.aqua.configure(aquaConfig);
+    if (loaderConfig && loaderConfig.customId) {
+        this.customId = loaderConfig.customId;
+    }
 };
 
 /**
@@ -29,7 +32,8 @@ Loader.prototype.getAllInvoiceItems = function() {
         "InvoiceItem.ServiceStartDate,InvoiceItem.SubscriptionId,InvoiceItem.TaxAmount,"+
         "InvoiceItem.UOM,InvoiceItem.UnitPrice,"+
         "Amendment.Type,"+
-        "Account.Currency,Account.Name,Account.AccountNumber,Account.SamepageId__c,Account.Status,"+
+        "Account.Currency,Account.Name,Account.AccountNumber,Account.Status,"+
+        (this.customId ? ",Account." + this.customId : "") +
         "BillToContact.City,BillToContact.Country,BillToContact.PostalCode,BillToContact.State,"+
         "Invoice.AdjustmentAmount,Invoice.Amount,Invoice.Balance,Invoice.DueDate,"+
         "Invoice.InvoiceDate,Invoice.InvoiceNumber,Invoice.PaymentAmount,"+
@@ -45,7 +49,8 @@ Loader.prototype.getAllInvoiceItems = function() {
 Loader.prototype.getAllCustomers = function() {
     return this.aqua.zoqlRequest(
         "select " +
-        "Account.Name,Account.AccountNumber,Account.SamepageId__c,Account.Status," +
+        "Account.Name,Account.AccountNumber,Account.Status," +
+        (this.customId ? ",Account." + this.customId : "") +
         "BillToContact.City,BillToContact.Country,BillToContact.PostalCode,BillToContact.State" +
         " from Account",
         "all Accounts"
@@ -120,7 +125,8 @@ Loader.prototype.getAllCreditBalanceAdjustments = function() {
         "CreditBalanceAdjustment.AccountingCode,CreditBalanceAdjustment.Amount,CreditBalanceAdjustment.CreatedDate,"+
         "CreditBalanceAdjustment.Id,CreditBalanceAdjustment.ReasonCode,CreditBalanceAdjustment.SourceTransactionType,"+
         "CreditBalanceAdjustment.Status,CreditBalanceAdjustment.Type,"+
-        "Account.SamepageId__c,Account.AccountNumber,"+
+        "Account.AccountNumber,"+
+        (this.customId ? ",Account." + this.customId : "") +
         "Invoice.InvoiceNumber,"+
         "Payment.Amount,Payment.Id,Payment.PaymentNumber,"+
         "Refund.Amount,Refund.Id,Refund.RefundDate,Refund.RefundNumber,Refund.Status"+
