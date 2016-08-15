@@ -33,7 +33,7 @@ Loader.prototype.getAllInvoiceItems = function() {
         "InvoiceItem.UOM,InvoiceItem.UnitPrice,"+
         "Amendment.Type,"+
         "Account.Currency,Account.Name,Account.AccountNumber,Account.Status,"+
-        (this.customId ? ",Account." + this.customId : "") +
+        (this.customId ? "Account." + this.customId + "," : "") +
         "BillToContact.City,BillToContact.Country,BillToContact.PostalCode,BillToContact.State,"+
         "Invoice.AdjustmentAmount,Invoice.Amount,Invoice.Balance,Invoice.DueDate,"+
         "Invoice.InvoiceDate,Invoice.InvoiceNumber,Invoice.PaymentAmount,"+
@@ -50,7 +50,7 @@ Loader.prototype.getAllCustomers = function() {
     return this.aqua.zoqlRequest(
         "select " +
         "Account.Name,Account.AccountNumber,Account.Status," +
-        (this.customId ? ",Account." + this.customId : "") +
+        (this.customId ? "Account." + this.customId + "," : "") +
         "BillToContact.City,BillToContact.Country,BillToContact.PostalCode,BillToContact.State" +
         " from Account",
         "all Accounts"
@@ -126,7 +126,7 @@ Loader.prototype.getAllCreditBalanceAdjustments = function() {
         "CreditBalanceAdjustment.Id,CreditBalanceAdjustment.ReasonCode,CreditBalanceAdjustment.SourceTransactionType,"+
         "CreditBalanceAdjustment.Status,CreditBalanceAdjustment.Type,"+
         "Account.AccountNumber,"+
-        (this.customId ? ",Account." + this.customId : "") +
+        (this.customId ? "Account." + this.customId + "," : "") +
         "Invoice.InvoiceNumber,"+
         "Payment.Amount,Payment.Id,Payment.PaymentNumber,"+
         "Refund.Amount,Refund.Id,Refund.RefundDate,Refund.RefundNumber,Refund.Status"+

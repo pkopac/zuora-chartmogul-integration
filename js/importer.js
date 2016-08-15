@@ -87,7 +87,7 @@ Importer.prototype.dropAndCreateDataSource = function(name) {
                     .tap(d => logger.trace(d))
                     .then((createdDs) => createdDs.uuid);
             } else {
-                logger.info("Creating new data source...");
+                logger.info("Creating new data source '" + name + "'...");
                 return cm.import.createDataSource(name)
                     .then((createdDs) => createdDs.uuid);
             }
