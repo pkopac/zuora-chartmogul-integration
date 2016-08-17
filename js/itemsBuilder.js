@@ -115,6 +115,16 @@ ItemsBuilder.processItems = function(
                 return; //useless
             }
 
+            var type = item.ProductRatePlanCharge.ChargeType;
+            if (type === "OneTime") { // no influence on MRR
+                type = "one_time";
+            } else if(type in {"Recurring": 1, "": 1}) { // empty string for deleted subscriptions
+                type = "subscription";
+            } else {
+                logger.error(item);
+                throw new VError("Unknown type of item " + type);
+            }
+
             /* Deal with invoice adjustments */
             if (context.invoiceAdjustmentAmount) {
                 var adjustments = ItemsBuilder.resolveInvoiceAdjustments(context.invoiceAdjustmentAmount, discount, amount);
@@ -131,7 +141,7 @@ ItemsBuilder.processItems = function(
 
             // compile line item for chartmogul
             return {
-                type: "subscription",
+                type: type,
                 // for deleted subscriptions we can't get the right number
                 subscription_external_id: item.Subscription.Name || item.Subscription.Id,
                 plan_uuid: plan,

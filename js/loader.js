@@ -39,6 +39,7 @@ Loader.prototype.getAllInvoiceItems = function() {
         "Invoice.InvoiceDate,Invoice.InvoiceNumber,Invoice.PaymentAmount,"+
         "Invoice.PostedDate,Invoice.RefundAmount,Invoice.Status,"+
         "ProductRatePlan.Id," +
+        "ProductRatePlanCharge.ChargeType," +
         "Subscription.CancelledDate,Subscription.Id,Subscription.Name,Subscription.Status,Subscription.SubscriptionEndDate"+
         " from InvoiceItem",
 
