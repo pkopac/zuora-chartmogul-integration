@@ -285,6 +285,9 @@ describe("invoiceBuilder", function() {
             ProductRatePlan: {
                 Id: "zuora_plan_id"
             },
+            ProductRatePlanCharge: {
+                ChargeType: "Recurring"
+            },
             InvoiceItem: {
                 ChargeAmount: 10,
                 Quantity: 1,
@@ -375,6 +378,9 @@ describe("invoiceBuilder", function() {
                 ProductRatePlan: {
                     Id: "zuora_plan_id"
                 },
+                ProductRatePlanCharge: {
+                    ChargeType: "Recurring"
+                },
                 Amendment: {
                     Type: "UpdateProduct"
                 }
@@ -404,6 +410,9 @@ describe("invoiceBuilder", function() {
                 },
                 ProductRatePlan: {
                     Id: "zuora_plan_id"
+                },
+                ProductRatePlanCharge: {
+                    ChargeType: "Recurring"
                 },
                 Amendment: {
                     Type: "UpdateProduct"

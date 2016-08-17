@@ -515,6 +515,9 @@ describe("ItemBuilder", function() {
                     ProductRatePlan: {
                         Id: "id1"
                     },
+                    ProductRatePlanCharge: {
+                        ChargeType: "OneTime"
+                    },
                     Subscription: {
                         CancelledDate: "",
                         Id: "id1",
@@ -544,6 +547,9 @@ describe("ItemBuilder", function() {
                     ProductRatePlan: {
                         Id: "id3"
                     },
+                    ProductRatePlanCharge: {
+                        ChargeType: "OneTime"
+                    },
                     Subscription: {
                         CancelledDate: "",
                         Id: "id3",
@@ -572,6 +578,9 @@ describe("ItemBuilder", function() {
                     },
                     ProductRatePlan: {
                         Id: "id4"
+                    },
+                    ProductRatePlanCharge: {
+                        ChargeType: "OneTime"
                     },
                     Subscription: {
                         CancelledDate: "",
@@ -608,6 +617,9 @@ describe("ItemBuilder", function() {
                     {
                         InvoiceNumber: "invoice2"
                     },
+                    ProductRatePlanCharge: {
+                        ChargeType: "Recurring"
+                    },
                     Subscription: {
                         Name: "name2"
                     },
@@ -619,7 +631,7 @@ describe("ItemBuilder", function() {
 
             var expected = [
                 {
-                    type: "subscription",
+                    type: "one_time",
                     subscription_external_id: "name1",
                     plan_uuid: "plan",
                     service_period_start: moment.utc(items[0].InvoiceItem.ServiceStartDate),
@@ -634,7 +646,7 @@ describe("ItemBuilder", function() {
                     __amendmentType: ""
                 },
                 {
-                    type: "subscription",
+                    type: "one_time",
                     subscription_external_id: "name4",
                     plan_uuid: "generic plan",
                     service_period_start: moment.utc(items[2].InvoiceItem.ServiceStartDate),
