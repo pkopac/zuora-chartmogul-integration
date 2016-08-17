@@ -32,6 +32,7 @@ var Exporter = function() {
         }; },
         activities: entry => {
             delete entry.customer_external_id;
+            delete entry.date;
             return entry; },
         subscriptions: entry => {
             return {
@@ -52,7 +53,7 @@ var Exporter = function() {
     this.MONGO_ID = {
         mrr: entry => {return new Date(entry.date); },
         all: entry => {return new Date(entry.date); },
-        activities: entry => {return entry.customer_external_id; },
+        activities: entry => {return {customer: entry.customer_external_id, date: new Date(entry.date)}; },
         subscriptions: entry => {return {customer: entry.customer_external_id, subscription: entry.id}; }
     };
 };
