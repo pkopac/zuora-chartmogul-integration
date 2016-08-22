@@ -31,7 +31,7 @@ function printHelpAndExit() {
     console.error("  -i, --interactive                     Run interactive ZOQL console.");
     console.error("  -o <file>, --output <file>            Path to dump data (use with -q or -e).");
     console.error("  -q <query>, --query <query>           Run query (use with -o).");
-    console.error("  -t <type>, --type <type>              Type of export [activities | subscriptions | mrr ] (use with -e).");
+    console.error("  -t <type>, --type <type>              Type of export [activities | all | mrr | subscriptions ] (use with -e).");
     console.error("  -p '{\"start-date\": \"YYYY-MM-DD\"}'     Parameters for export as JSON.");
     console.error("    --params {}  ");
     console.error("  -u, --update                          Ignore 'existing' errors while importing to Chartmogul.");

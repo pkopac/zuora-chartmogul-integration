@@ -9,7 +9,7 @@ var CancellationModule = require("../cancellation.js");
 var Cancellation = CancellationModule.Cancellation;
 var diff = require("deep-diff").diff,
     moment = require("moment");
-
+// var logger = require("log4js").getLogger("spec");
 
 describe("Cancellation", function(){
     var cancellation;
@@ -397,80 +397,6 @@ describe("Cancellation", function(){
         expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
     });
 
-    it("Long overdue invoices are canceled", function() {
-        cancellation = new Cancellation();
-        cancellation.configure({unpaidToCancelMonths: 1, noRenewalToCancelMonths: 10000});
-
-        var result = cancellation._cancelLongDueInvoices([
-            {external_id: "I01", due_date: "2016-06-01", __balance: 1000, line_items: [
-                {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
-                 service_period_start: "2016-05-01", service_period_end: "2016-05-30", external_id: "ii01"},
-                {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
-                 service_period_start: "2016-06-01", service_period_end: "2016-06-30", external_id: "ii02"}
-            ]}
-        ], moment.utc("2016-07-07"));
-
-        const EXPECTED = [{
-            "external_id": "I01",
-            "due_date": "2016-06-01",
-            "__balance": 1000,
-            "line_items": [
-                {
-                    "subscription_external_id": "S01",
-                    "amount_in_cents": 500,
-                    "discount_amount_in_cents": 0,
-                    "quantity": 5,
-                    "service_period_start": "2016-05-01",
-                    "service_period_end": "2016-05-30",
-                    "external_id": "ii01",
-                    "cancelled_at": "2016-05-01"
-                }
-            ]
-        }];
-        expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
-    });
-
-    it("Shortly overdue invoices are NOT canceled", function() {
-        cancellation = new Cancellation();
-        cancellation.configure({unpaidToCancelMonths: 2, noRenewalToCancelMonths: 10000});
-
-        var result = cancellation._cancelLongDueInvoices([
-            {external_id: "I01", due_date: "2016-06-01", __balance: 1000, line_items: [
-                {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
-                 service_period_start: "2016-05-01", service_period_end: "2016-05-30", external_id: "ii01"},
-                {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
-                 service_period_start: "2016-06-01", service_period_end: "2016-06-30", external_id: "ii02"}
-            ]}
-        ], moment.utc("2016-07-30"));
-
-        const EXPECTED = [{
-            "external_id": "I01",
-            "due_date": "2016-06-01",
-            "__balance": 1000,
-            "line_items": [
-                {
-                    "subscription_external_id": "S01",
-                    "amount_in_cents": 500,
-                    "discount_amount_in_cents": 0,
-                    "quantity": 5,
-                    "service_period_start": "2016-05-01",
-                    "service_period_end": "2016-05-30",
-                    "external_id": "ii01"
-                },
-                {
-                    "subscription_external_id": "S01",
-                    "amount_in_cents": 500,
-                    "discount_amount_in_cents": 0,
-                    "quantity": 5,
-                    "service_period_start": "2016-06-01",
-                    "service_period_end": "2016-06-30",
-                    "external_id": "ii02"
-                }
-            ]
-        }];
-        expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
-    });
-
     it("Canceling non-renewal doesn't affect regular invoices.", function() {
         cancellation = new Cancellation();
         cancellation.configure({unpaidToCancelMonths: 10000, noRenewalToCancelMonths: 1});
@@ -824,6 +750,253 @@ describe("Cancellation", function(){
             "__balance": 0
         }];
         expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
+    });
+
+    describe("Past due invoices", function() {
+        it("Long overdue invoices are canceled", function() {
+            cancellation = new Cancellation();
+            cancellation.configure({unpaidToCancelMonths: 1, noRenewalToCancelMonths: 10000});
+
+            var result = cancellation._cancelLongDueInvoices([
+                {external_id: "I01", due_date: "2016-06-01", __balance: 1000, line_items: [
+                    {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
+                     service_period_start: "2016-05-01", service_period_end: "2016-05-30", external_id: "ii01"},
+                    {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
+                     service_period_start: "2016-06-01", service_period_end: "2016-06-30", external_id: "ii02"}
+                ]}
+            ], moment.utc("2016-07-07"));
+
+            const EXPECTED = [{
+                "external_id": "I01",
+                "due_date": "2016-06-01",
+                "__balance": 1000,
+                "line_items": [
+                    {
+                        "subscription_external_id": "S01",
+                        "amount_in_cents": 500,
+                        "discount_amount_in_cents": 0,
+                        "quantity": 5,
+                        "service_period_start": "2016-05-01",
+                        "service_period_end": "2016-05-30",
+                        "external_id": "ii01",
+                        "cancelled_at": "2016-05-01"
+                    }
+                ]
+            }];
+            expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
+        });
+
+        it("Shortly overdue invoices are NOT canceled", function() {
+            cancellation = new Cancellation();
+            cancellation.configure({unpaidToCancelMonths: 2, noRenewalToCancelMonths: 10000});
+
+            var result = cancellation._cancelLongDueInvoices([
+                {external_id: "I01", due_date: "2016-06-01", __balance: 1000, line_items: [
+                    {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
+                     service_period_start: "2016-05-01", service_period_end: "2016-05-30", external_id: "ii01"},
+                    {subscription_external_id: "S01", amount_in_cents: 500, discount_amount_in_cents:0, quantity: 5,
+                     service_period_start: "2016-06-01", service_period_end: "2016-06-30", external_id: "ii02"}
+                ]}
+            ], moment.utc("2016-07-30"));
+
+            const EXPECTED = [{
+                "external_id": "I01",
+                "due_date": "2016-06-01",
+                "__balance": 1000,
+                "line_items": [
+                    {
+                        "subscription_external_id": "S01",
+                        "amount_in_cents": 500,
+                        "discount_amount_in_cents": 0,
+                        "quantity": 5,
+                        "service_period_start": "2016-05-01",
+                        "service_period_end": "2016-05-30",
+                        "external_id": "ii01"
+                    },
+                    {
+                        "subscription_external_id": "S01",
+                        "amount_in_cents": 500,
+                        "discount_amount_in_cents": 0,
+                        "quantity": 5,
+                        "service_period_start": "2016-06-01",
+                        "service_period_end": "2016-06-30",
+                        "external_id": "ii02"
+                    }
+                ]
+            }];
+            expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
+        });
+
+        it("Multiple invoices - cancel first unpaid, omit the rest", function(){
+            cancellation = new Cancellation();
+            cancellation.configure({unpaidToCancelMonths: 2, noRenewalToCancelMonths: 10000});
+            var result = cancellation._cancelLongDueInvoices([
+                {
+                    "external_id": "inv01",
+                    "date": "2016-05-15T17:47:11+00:00",
+                    "currency": "USD",
+                    "due_date": "2016-05-15T00:00:00+00:00",
+                    "line_items": [{
+                        "type": "subscription",
+                        "subscription_external_id": "subs01",
+                        "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                        "service_period_start": "2016-05-15T00:00:00+00:00",
+                        "service_period_end": "2016-06-14T23:59:59+00:00",
+                        "amount_in_cents": 1333,
+                        "prorated": false,
+                        "quantity": 10,
+                        "discount_amount_in_cents": 8667,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "extid001",
+                        "__amendmentType": "NewProduct"
+                    }],
+                    "transactions": [{
+                        "date": "2016-05-15T17:47:11+00:00",
+                        "type": "payment",
+                        "result": "successful",
+                        "external_id": "payment-110-inv01"
+                    }],
+                    "__balance": 0
+                }, {
+                    "external_id": "inv02",
+                    "date": "2016-06-15T09:36:09+00:00",
+                    "currency": "USD",
+                    "due_date": "2016-06-15T00:00:00+00:00",
+                    "line_items": [{
+                        "type": "subscription",
+                        "subscription_external_id": "subs01",
+                        "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                        "service_period_start": "2016-06-15T00:00:00+00:00",
+                        "service_period_end": "2016-07-14T23:59:59+00:00",
+                        "amount_in_cents": 10000,
+                        "prorated": false,
+                        "quantity": 10,
+                        "discount_amount_in_cents": 0,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "extid002",
+                        "__amendmentType": "NewProduct"
+                    }],
+                    "transactions": [{
+                        "date": "2016-06-15T12:00:05+00:00",
+                        "type": "payment",
+                        "result": "failed",
+                        "external_id": "payment-125-inv02"
+                    }, {
+                        "date": "2016-06-16T12:00:06+00:00",
+                        "type": "payment",
+                        "result": "failed",
+                        "external_id": "payment-121-inv02"
+                    }, {
+                        "date": "2016-06-17T12:00:07+00:00",
+                        "type": "payment",
+                        "result": "failed",
+                        "external_id": "payment-123-inv02"
+                    }],
+                    "__balance": 100
+                }, {
+                    "external_id": "inv1234",
+                    "date": "2016-07-15T09:33:11+00:00",
+                    "currency": "USD",
+                    "due_date": "2016-07-15T00:00:00+00:00",
+                    "line_items": [{
+                        "type": "subscription",
+                        "subscription_external_id": "subs01",
+                        "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                        "service_period_start": "2016-07-15T00:00:00+00:00",
+                        "service_period_end": "2016-08-14T23:59:59+00:00",
+                        "amount_in_cents": 10000,
+                        "cancelled_at": "2016-08-04T00:00:00+00:00",
+                        "prorated": false,
+                        "quantity": 10,
+                        "discount_amount_in_cents": 0,
+                        "tax_amount_in_cents": 0,
+                        "external_id": "extid25",
+                        "__amendmentType": "NewProduct"
+                    }],
+                    "transactions": [],
+                    "__balance": 64.52
+                }], moment.utc("2016-08-30"));
+
+            const EXPECTED = [
+                {
+                    "external_id": "inv01",
+                    "date": "2016-05-15T17:47:11+00:00",
+                    "currency": "USD",
+                    "due_date": "2016-05-15T00:00:00+00:00",
+                    "line_items": [
+                        {
+                            "type": "subscription",
+                            "subscription_external_id": "subs01",
+                            "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                            "service_period_start": "2016-05-15T00:00:00+00:00",
+                            "service_period_end": "2016-06-14T23:59:59+00:00",
+                            "amount_in_cents": 1333,
+                            "prorated": false,
+                            "quantity": 10,
+                            "discount_amount_in_cents": 8667,
+                            "tax_amount_in_cents": 0,
+                            "external_id": "extid001",
+                            "__amendmentType": "NewProduct"
+                        }
+                    ],
+                    "transactions": [
+                        {
+                            "date": "2016-05-15T17:47:11+00:00",
+                            "type": "payment",
+                            "result": "successful",
+                            "external_id": "payment-110-inv01"
+                        }
+                    ],
+                    "__balance": 0
+                },
+                {
+                    "external_id": "inv02",
+                    "date": "2016-06-15T09:36:09+00:00",
+                    "currency": "USD",
+                    "due_date": "2016-06-15T00:00:00+00:00",
+                    "line_items": [
+                        {
+                            "type": "subscription",
+                            "subscription_external_id": "subs01",
+                            "plan_uuid": "fake_plan_uuid_Pro: Monthly",
+                            "cancelled_at": "2016-06-15T00:00:00+00:00",
+                            "service_period_start": "2016-06-15T00:00:00+00:00",
+                            "service_period_end": "2016-07-14T23:59:59+00:00",
+                            "amount_in_cents": 10000,
+                            "prorated": false,
+                            "quantity": 10,
+                            "discount_amount_in_cents": 0,
+                            "tax_amount_in_cents": 0,
+                            "external_id": "extid002",
+                            "__amendmentType": "NewProduct"
+                        }
+                    ],
+                    "transactions": [
+                        {
+                            "date": "2016-06-15T12:00:05+00:00",
+                            "type": "payment",
+                            "result": "failed",
+                            "external_id": "payment-125-inv02"
+                        },
+                        {
+                            "date": "2016-06-16T12:00:06+00:00",
+                            "type": "payment",
+                            "result": "failed",
+                            "external_id": "payment-121-inv02"
+                        },
+                        {
+                            "date": "2016-06-17T12:00:07+00:00",
+                            "type": "payment",
+                            "result": "failed",
+                            "external_id": "payment-123-inv02"
+                        }
+                    ],
+                    "__balance": 100
+                }
+            ];
+
+            expect(JSON.stringify(diff(EXPECTED, result), null, 2)).toEqual();
+        });
     });
 
     describe("Secondary", function(){

@@ -40,11 +40,11 @@ Cancellation.prototype.cancelInvoices = function(invoices) {
     var mToday = moment.utc().startOf("day");
 
     /* These methods mutate the invoices object, including individual invoice[s]. */
-    this._downgradeAsCancel(invoices);
+    invoices = this._downgradeAsCancel(invoices);
 
-    this._cancelLongDueInvoices(invoices, mToday);
+    invoices = this._cancelLongDueInvoices(invoices, mToday);
 
-    this._cancelNonrenewedSubscriptions(invoices, mToday);
+    invoices = this._cancelNonrenewedSubscriptions(invoices, mToday);
 
     return this._removeMetadata(invoices);
 };
@@ -124,37 +124,54 @@ Cancellation.prototype._cancelNonrenewedSubscriptions = function (invoices, mTod
  * Under normal circumstances such accounts should be dealt with by sales retention process.
  */
 Cancellation.prototype._cancelLongDueInvoices = function (invoices, mToday) {
+    var subscriptionsState = {};
     for (var i = 0; i < invoices.length; i++) {
         var invoice = invoices[i],
             invoiceTotal = Math.round(invoice.line_items.reduce(
                             (prev, item) => prev + item.amount_in_cents, 0));
+
         if (invoice.__balance === undefined) {
             throw new VError("Missing metadata __balance!");
         }
-        if (invoiceTotal > 0 && invoice.__balance > 0 && // has outstanding balance
+        var bySub = _.groupBy(invoice.line_items, "subscription_external_id");
+
+        // The definition of outstanding invoice:
+        var isOverdue = mToday.diff(moment.utc(invoice.due_date), "month") >= this.unpaidToCancelMonths;
+        if (// has outstanding balance
+            invoiceTotal > 0 && invoice.__balance > 0 &&
                 // has been unpaid for 2 or more months over due
-                mToday.diff(moment.utc(invoice.due_date), "month") >= this.unpaidToCancelMonths &&
-                // has uncancelled items
-                invoice.line_items.some(i => !i.cancelled_at)) {
+                (isOverdue || Object.keys(bySub).some(sub => subscriptionsState[sub]))
+             ) {
 
-            var bySub = _.groupBy(invoice.line_items, "subscription_external_id");
+            //TODO: use this algorithm in _processCancellations, too, because there's something very similar.
 
-            //TODO: use this advances thing in _processCancellations, too, because there's something very similar.
             // Per subscription adds cancel date if not there already and
             // removes any further items, so there's not false reactivation.
-            Object.keys(bySub).forEach(sub => {
-                var cancellable = _.sortBy(bySub[sub].filter(i => i.amount_in_cents >= 0), "service_period_start"),
-                    removeMap = {};
-                if (!cancellable[0].cancelled_at) {
-                    cancellable[0].cancelled_at = cancellable[0].service_period_start;
-                }
-                cancellable.shift();
-                cancellable.forEach(c => removeMap[c.external_id] = true);
-                invoice.line_items = invoice.line_items.filter(i => !removeMap[i.external_id]);
-            });
+            Object.keys(bySub)
+                // in non-overdue invoices removes just previously unpaid subscriptions
+                .filter(sub => !isOverdue && subscriptionsState[sub] || isOverdue)
+                .forEach(sub => {
+                    var cancellable = _.sortBy(bySub[sub].filter(i => i.amount_in_cents >= 0), "service_period_start"),
+                        removeMap = {};
+
+                    if (!cancellable[0].cancelled_at) { // keep original cancel date if present
+                        cancellable[0].cancelled_at = cancellable[0].service_period_start;
+                    }
+
+                    logger.debug(subscriptionsState[sub]);
+                    if (!subscriptionsState[sub]) { // keep the item only if not already canceled in previous invoice
+                        subscriptionsState[sub] = cancellable[0].cancelled_at;
+                        cancellable.shift();
+                    }
+
+                    cancellable.forEach(c => removeMap[c.external_id] = true);
+                    invoice.line_items = invoice.line_items.filter(i => !removeMap[i.external_id]);
+                });
+        } else {
+            Object.keys(bySub).forEach(sub => subscriptionsState[sub] = null); //reset state if other kind of invoice
         }
     }
-    return invoices;
+    return invoices.filter(i => i.line_items.length);
 };
 
 /**
