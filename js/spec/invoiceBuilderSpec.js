@@ -322,8 +322,8 @@ describe("invoiceBuilder", function() {
                             "type": "subscription",
                             "subscription_external_id": "SUB-001",
                             "plan_uuid": "plan_cm_uuid",
-                            "service_period_start": "2012-12-10T00:00:00+00:00",
-                            "service_period_end": "2013-03-09T23:59:59+00:00", // end of period to end of day
+                            "service_period_start": new Date("2012-12-10T00:00:00+00:00"),
+                            "service_period_end": new Date("2013-03-09T23:59:59+00:00"), // end of period to end of day
                             "amount_in_cents": 1000,
                             "prorated": false,
                             "quantity": 1,
@@ -435,8 +435,8 @@ describe("invoiceBuilder", function() {
                             "type": "subscription",
                             "subscription_external_id": "SUB-001",
                             "plan_uuid": "plan_cm_uuid",
-                            "service_period_start": "2013-02-01T00:00:00+00:00",
-                            "service_period_end": "2013-03-09T23:59:59+00:00", // end of period to end of day
+                            "service_period_start": new Date("2013-02-01T00:00:00+00:00"),
+                            "service_period_end": new Date("2013-03-09T23:59:59+00:00"), // end of period to end of day
                             "amount_in_cents": -1000,
                             "prorated": true,
                             "quantity": -1,
@@ -467,5 +467,152 @@ describe("invoiceBuilder", function() {
         //TODO: two invoices with one payment assigned to both
         //TODO: partial payment
         //TODO: partial refund
+    });
+
+    describe("correctly transforms plan changes", function(){
+        it("monthly to annual", function(){
+            //whatever order of proration
+            const INVOICE_ITEMS = [{
+                    "InvoiceItem": {
+                        "AccountingCode": "ANNUALFEE",
+                        "AppliedToInvoiceItemId": "",
+                        "ChargeAmount": 3500,
+                        "ChargeName": "Users",
+                        "Id": "ii012",
+                        "Quantity": 50,
+                        "ServiceEndDate": "2017-08-03",
+                        "ServiceStartDate": "2016-08-04",
+                        "SubscriptionId": "subs011",
+                        "TaxAmount": 0,
+                        "UOM": "User",
+                        "UnitPrice": 70
+                    },
+                    "Amendment": {
+                        "Type": "NewProduct"
+                    },
+                    "Account": {
+                        "Currency": "USD",
+                        "AccountNumber": "01",
+                        "Status": "Active"
+                    },
+                    "Invoice": {
+                        "AdjustmentAmount": 0,
+                        "Amount": 3359.68,
+                        "Balance": 3359.68,
+                        "DueDate": "2016-09-03",
+                        "InvoiceDate": "2016-08-04",
+                        "InvoiceNumber": "i0123456",
+                        "PaymentAmount": 0,
+                        "PostedDate": "2016-08-04T22:00:54+0000",
+                        "RefundAmount": 0,
+                        "Status": "Posted"
+                    },
+                    "ProductRatePlan": {
+                        "Id": "monthly_zuora_plan"
+                    },
+                    "ProductRatePlanCharge": {
+                        "ChargeType": "Recurring"
+                    },
+                    "Subscription": {
+                        "CancelledDate": "",
+                        "Id": "subs011",
+                        "Name": "A-S00094374",
+                        "Status": "Active",
+                        "SubscriptionEndDate": ""
+                    }
+                }, {
+                    "InvoiceItem": {
+                        "AccountingCode": "MONTHLYFEE",
+                        "AppliedToInvoiceItemId": "",
+                        "ChargeAmount": -140.32,
+                        "ChargeName": "Users -- Proration Credit",
+                        "Id": "ii0123",
+                        "Quantity": 15,
+                        "ServiceEndDate": "2016-09-01",
+                        "ServiceStartDate": "2016-08-04",
+                        "SubscriptionId": "subs011",
+                        "TaxAmount": 0,
+                        "UOM": "User",
+                        "UnitPrice": 10
+                    },
+                    "Amendment": {
+                        "Type": "RemoveProduct"
+                    },
+                    "Account": {
+                        "Currency": "USD",
+                        "AccountNumber": "01",
+                        "Status": "Active"
+                    },
+                    "Invoice": {
+                        "AdjustmentAmount": 0,
+                        "Amount": 3359.68,
+                        "Balance": 3359.68,
+                        "DueDate": "2016-09-03",
+                        "InvoiceDate": "2016-08-04",
+                        "InvoiceNumber": "i0123456",
+                        "PaymentAmount": 0,
+                        "PostedDate": "2016-08-04T22:00:54+0000",
+                        "RefundAmount": 0,
+                        "Status": "Posted"
+                    },
+                    "ProductRatePlan": {
+                        "Id": "yearly_zuora_plan"
+                    },
+                    "ProductRatePlanCharge": {
+                        "ChargeType": "Recurring"
+                    },
+                    "Subscription": {
+                        "CancelledDate": "",
+                        "Id": "subs011",
+                        "Name": "A-S00094374",
+                        "Status": "Active",
+                        "SubscriptionEndDate": ""
+                    }
+                }],
+                itemAdjsByInvoice = [],
+                invoiceAdjsByInvoice = [],
+                creditAdjsByInvoice = [],
+                paymentsByInvoice = [],
+                refundsByInvoice = [],
+                EXPECTED = {
+                    "external_id": "INVO-123",
+                    "date": "2012-12-07T14:53:49+00:00",
+                    "currency": "USD",
+                    "due_date": "2013-01-06T00:00:00+00:00",
+                    "line_items": [
+                        {
+                            "type": "subscription",
+                            "subscription_external_id": "A-S00094374",
+                            "plan_uuid": "cm_monthly",
+                            "service_period_start": new Date("2016-08-04T00:00:00+00:00"),
+                            "service_period_end": new Date("2017-08-03T23:59:59+00:00"),
+                            "amount_in_cents": 350000,
+                            "prorated": false,
+                            "quantity": 50,
+                            "discount_amount_in_cents": 0,
+                            "tax_amount_in_cents": 0,
+                            "external_id": "ii012",
+                            "__amendmentType": "NewProduct"
+                        }
+                    ],
+                    "transactions": [],
+                    "__balance": 3359.68
+                };
+            const PLANS_BY_ID = {monthly_zuora_plan: "cm_monthly", yearly_zuora_plan: "cm_yearly"};
+            var invoice = InvoiceBuilder.buildInvoice("INVO-123",
+                INVOICE_ITEMS,
+                "2012-12-07T14:53:49+00:00",
+                "2013-01-06T00:00:00+00:00",
+                "USD",
+                itemAdjsByInvoice,
+                invoiceAdjsByInvoice,
+                creditAdjsByInvoice,
+                paymentsByInvoice,
+                refundsByInvoice,
+                PLANS_BY_ID
+            );
+
+            expect(JSON.stringify(diff(EXPECTED, invoice), null, 4)).toEqual();
+        });
     });
 });

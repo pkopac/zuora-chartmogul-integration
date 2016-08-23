@@ -83,11 +83,37 @@ InvoiceBuilder.buildInvoice = function(invoiceNumber, invoiceItems, postedDate,
              line_item.quantity
         );
 
+        InvoiceBuilder.removeProrationFromPlanChange(invoice);
+
         return invoice;
     } catch (error) {
         logger.debug(error.stack);
         throw new VError(error, "Couldn't build invoice " + invoiceNumber);
     }
+};
+
+InvoiceBuilder.removeProrationFromPlanChange = function(invoice) {
+    invoice.line_items.forEach(i => { // ensure it's Date object
+        i.service_period_start = new Date(i.service_period_start);
+        i.service_period_end = new Date(i.service_period_end);
+    });
+    var unprorated = invoice.line_items.filter(i => i.prorated === false),
+        prorated = invoice.line_items.filter(i => i.prorated === true),
+        toRemove = {};
+
+    prorated.filter(p => unprorated.find(u =>
+        +p.service_period_start === +u.service_period_start &&
+        p.plan_uuid !== u.plan_uuid &&
+        p.subscription_external_id === u.subscription_external_id &&
+        u.__amendmentType === "NewProduct" &&
+        p.__amendmentType === "RemoveProduct"
+    ))
+    .forEach(p => {
+        logger.debug("Removing prorated item, because plan for subscription is being changed.", p.external_id);
+        toRemove[p.external_id] = true;
+    });
+
+    invoice.line_items = invoice.line_items.filter(i => !toRemove[i.external_id]);
 };
 
 InvoiceBuilder.removePartialRefunds = function(invoice, totalPayments, totalRefunds, totalCreditAdjusted) {

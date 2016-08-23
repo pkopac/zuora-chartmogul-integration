@@ -77,8 +77,6 @@ ItemsBuilder.processItems = function(
     logger.trace(items.map(i=>i.InvoiceItem.ChargeName));
 
     var result = items
-        // Cannot - because of downgrades to free
-        //.filter(item => item.InvoiceItem.Quantity !== 0 && item.InvoiceItem.UOM !== 0)
         .map(item => {
             logger.trace("InvoiceItem.Id %s - %s...", item.InvoiceItem.Id, item.InvoiceItem.ChargeName);
             ItemsBuilder.checkItemSanity(item);
@@ -308,10 +306,6 @@ ItemsBuilder.checkItemSanity = function(item) {
     if (!item.InvoiceItem.ServiceEndDate) {
         throw new VError("ServiceEndDate " + String(item.InvoiceItem.ServiceEndDate));
     }
-    // if ((item.InvoiceItem.Quantity === 0 || item.InvoiceItem.UnitPrice === 0) && item.InvoiceItem.ChargeAmount !== 0) {
-    //     logger.error(item);
-    //     throw new VError("Charge should be 0!");
-    // }
 };
 
 ItemsBuilder.rangeIntersection = function(aStart, aEnd, bStart, bEnd) {

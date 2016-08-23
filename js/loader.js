@@ -29,8 +29,7 @@ Loader.prototype.getAllInvoiceItems = function() {
         "select "+
         "InvoiceItem.AccountingCode,InvoiceItem.AppliedToInvoiceItemId,InvoiceItem.ChargeAmount,"+
         "InvoiceItem.ChargeName,InvoiceItem.Id,InvoiceItem.Quantity,InvoiceItem.ServiceEndDate,"+
-        "InvoiceItem.ServiceStartDate,InvoiceItem.SubscriptionId,InvoiceItem.TaxAmount,"+
-        "InvoiceItem.UOM,InvoiceItem.UnitPrice,"+
+        "InvoiceItem.ServiceStartDate,InvoiceItem.TaxAmount,"+
         "Amendment.Type,"+
         "Account.Currency,Account.Name,Account.AccountNumber,Account.Status,"+
         (this.customId ? "Account." + this.customId + "," : "") +
