@@ -30,10 +30,11 @@ function printHelpAndExit() {
     console.error("  -h, --help                            Show this help message.");
     console.error("  -i, --interactive                     Run interactive ZOQL console.");
     console.error("  -o <file>, --output <file>            Path to dump data (use with -q or -e).");
-    console.error("  -q <query>, --query <query>           Run query (use with -o).");
     console.error("  -t <type>, --type <type>              Type of export [activities | all | mrr | subscriptions ] (use with -e).");
     console.error("  -p '{\"start-date\": \"YYYY-MM-DD\"}'     Parameters for export as JSON.");
     console.error("    --params {}  ");
+    console.error("  -q <query>, --query <query>           Run query (use with -o).");
+    console.error("  -r, --enrichment                      Run enrichment of all customers in CM from MongoDB (see settings).");
     console.error("  -u, --update                          Ignore 'existing' errors while importing to Chartmogul.");
     process.exit(1);
 }
@@ -41,7 +42,7 @@ function printHelpAndExit() {
 function processArgs() {
     argv = minimist(process.argv.slice(2),
     { string: ["config", "export", "output", "query", "type", "pwd"],
-      boolean: ["dry", "help", "interactive", "update"],
+      boolean: ["dry", "help", "interactive", "update", "enrichment"],
       alias: {
           config: "c",
           dry: "d",
@@ -51,6 +52,7 @@ function processArgs() {
           output: "o",
           params: "p",
           query: "q",
+          enrichment: "r",
           type: "t",
           update: "u"
       },
@@ -140,12 +142,23 @@ function runExport(configuration, fileType, outputFile, pwd, exportType, params)
     var Exporter = require("./extra/exporter.js").Exporter,
         exporter = new Exporter().configure(configuration.chartmogul, configuration.export);
 
-    var dataSource = "zuora";
+    var dataSource;
     if (configuration && configuration.transformer && configuration.transformer.dataSource) {
         dataSource = configuration.transformer.dataSource;
+    } else {
+        throw new Error("Please configure transformer.dataSource");
     }
-    logger.info("Export of %s to run now...", exportType);
+    logger.info("Export of %s about to run now...", exportType);
     exporter.run(exportType, dataSource, fileType, outputFile, pwd, params)
+        .done();
+}
+
+function runEnrichment(configuration) {
+    var Enrichment = require("./extra/enrichment.js").Enrichment,
+        enrichment = new Enrichment().configure(configuration.chartmogul, configuration.enrichment);
+    logger.info("Enrichment about to run now...");
+    enrichment
+        .run()
         .done();
 }
 
@@ -165,6 +178,8 @@ function runExport(configuration, fileType, outputFile, pwd, exportType, params)
         runQuery(configuration, argv.query, argv.output);
     } else if (argv.export) {
         runExport(configuration, argv.export, argv.output, argv.pwd, argv.type, JSON.parse(argv.params));
+    } else if (argv.enrichment) {
+        runEnrichment(configuration);
     } else {
         runTransformation(configuration, argv.dry, argv.update);
     }

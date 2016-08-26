@@ -28,6 +28,10 @@ You can also just run queries with ```-q``` and save results into file as JSONs.
 [CM has Metrics API](https://dev.chartmogul.com/docs/retrieve-mrr) which can be used with ```-e -t```
 to get data for checking or further processing. Supported types are listed in ```--help```.
 
+### Enrichment of Customers in ChartMogul
+Basic implementation, which allows to tag & add attributes to customers from a MongoDB collection.
+See comments in configuration for details; run with ```-r```.
+
 ### Tests
 Uses ```istanbul``` for coverage and ```jasmine``` for definition of unit tests.
 * Run ```npm test```.

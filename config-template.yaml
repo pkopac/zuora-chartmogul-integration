@@ -47,3 +47,10 @@
     appenders:
       -
         type: "console"
+  enrichment:
+    mongo:
+      url: "mongodb://localhost:27017/db"
+      collections:
+        # expected format of collection: {_id: "customer_external_id", tags: ["tag", ...], attributes: {"attr": value, ...}}
+        # value can be - an ISODate, number, string, boolean
+        attributesTags: "cmAttributesTags"
