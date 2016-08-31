@@ -245,10 +245,12 @@ ItemsBuilder.useProrationCredits = function(item, amount, proratedUsersCredit, p
 
     var index = credits.length - 1;
     while (index >= 0) {
-        let credit = credits[index];
+        let credit = credits[index],
+            serviceIntersection = ItemsBuilder.serviceIntersection(credit, item),
+            restOfCreditRange = ItemsBuilder.subtractService(credit, item);
         if (credit.Subscription.Name !== item.Subscription.Name || // different subscription
             // credit.InvoiceItem.Quantity === item.InvoiceItem.Quantity || // would result in 0 change
-            !ItemsBuilder.serviceIntersection(credit, item) || // non-intersecting
+            !serviceIntersection || // non-intersecting
             credit.InvoiceItem.AccountingCode !== item.InvoiceItem.AccountingCode) { // change of plan
             index--;
             continue;
@@ -256,21 +258,49 @@ ItemsBuilder.useProrationCredits = function(item, amount, proratedUsersCredit, p
         prorated = true; // amount & quantity = change/differential
         // yes, really! See INV00003933, INV00004009
         let discountOnProration = (discountMap[credit.InvoiceItem.Id] || 0) + (adjustmentMap[credit.InvoiceItem.Id] || 0);
-        //we are subtracting from amount (credit is negative)
-        logger.debug("Applying credit %d with discount %d and quantity %d",
-            credit.InvoiceItem.ChargeAmount, discountOnProration, item.InvoiceItem.Quantity);
+        delete discountMap[credit.InvoiceItem.Id];
+        delete adjustmentMap[credit.InvoiceItem.Id];
+        // we are subtracting from amount (credit is negative)
+        logger.debug("Applying credit %d with discount %d, quantity %d, service intersection %d",
+            credit.InvoiceItem.ChargeAmount, discountOnProration, item.InvoiceItem.Quantity, serviceIntersection);
 
-        amount += (credit.InvoiceItem.ChargeAmount + discountOnProration);
+        var restOfCredit = 0;
+        if (restOfCreditRange && restOfCreditRange.length) {
+            restOfCredit = restOfCreditRange[0].diff("days");
+        }
+
+        var creditAmount = credit.InvoiceItem.ChargeAmount + discountOnProration,
+            creditSign = credit.InvoiceItem.ChargeAmount > 0;
+
         // this can result in negative quantity => prorated downgrade
-        if (credit.InvoiceItem.ChargeAmount > 0) {
+        if (creditSign) {
             // for some wicked reason, there are charged credits, see INV00005475
             quantity += credit.InvoiceItem.Quantity;
         } else {
             quantity -= credit.InvoiceItem.Quantity;
         }
 
-        credits.splice(index, 1);
-        index--;
+        // One credit for multiple items
+        if (restOfCredit) {
+            var ratio = restOfCredit / (serviceIntersection + restOfCredit);
+            // This is the date range still to be resolved
+            credit.InvoiceItem.ServiceStartDate = restOfCreditRange[0].start;
+            credit.InvoiceItem.ServiceEndDate = restOfCreditRange[0].end.subtract(1, "ms");
+            // This is the amount to be resolved
+            credit.InvoiceItem.ChargeAmount = ratio * creditAmount;
+            amount += (1 - ratio) * creditAmount;
+
+            if (creditSign) { // IDK what this means, but it's symmetric
+                credit.InvoiceItem.Quantity -= quantity;
+            } else {
+                credit.InvoiceItem.Quantity += quantity;
+            }
+        } else {
+            amount += creditAmount;
+            // credit was completely used
+            credits.splice(index, 1);
+            index--;
+        }
     }
 
     if (quantity === 0) {
@@ -309,12 +339,12 @@ ItemsBuilder.checkItemSanity = function(item) {
 };
 
 ItemsBuilder.rangeIntersection = function(aStart, aEnd, bStart, bEnd) {
-    var rangeA = moment.range(moment.utc(aStart), moment.utc(aEnd)),
-        rangeB = moment.range(moment.utc(bStart), moment.utc(bEnd)),
+    var rangeA = moment.range(moment.utc(aStart), moment.utc(aEnd).clone().add(1, "ms")),
+        rangeB = moment.range(moment.utc(bStart), moment.utc(bEnd).clone().add(1, "ms")),
         intersection = rangeA.intersect(rangeB);
 
     if (intersection) {
-        return intersection.diff("seconds");
+        return intersection.diff("days");
     } else {
         return 0;
     }
@@ -322,6 +352,19 @@ ItemsBuilder.rangeIntersection = function(aStart, aEnd, bStart, bEnd) {
 
 ItemsBuilder.serviceIntersection = function(a, b) {
     return ItemsBuilder.rangeIntersection(
+        a.InvoiceItem.ServiceStartDate, a.InvoiceItem.ServiceEndDate,
+        b.InvoiceItem.ServiceStartDate, b.InvoiceItem.ServiceEndDate
+    );
+};
+
+ItemsBuilder.subtractRanges = function(aStart, aEnd, bStart, bEnd) {
+    var rangeA = moment.range(moment.utc(aStart), moment.utc(aEnd).clone().add(1, "ms")),
+        rangeB = moment.range(moment.utc(bStart), moment.utc(bEnd).clone().add(1, "ms"));
+    return rangeA.subtract(rangeB);
+};
+
+ItemsBuilder.subtractService = function(a, b) {
+    return ItemsBuilder.subtractRanges(
         a.InvoiceItem.ServiceStartDate, a.InvoiceItem.ServiceEndDate,
         b.InvoiceItem.ServiceStartDate, b.InvoiceItem.ServiceEndDate
     );

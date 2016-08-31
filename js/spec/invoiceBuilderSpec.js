@@ -365,8 +365,9 @@ describe("invoiceBuilder", function() {
                     Quantity: 2,
                     ChargeName: "Users -- Proration Credit",
                     Id: "ITEM-001",
-                    "ServiceEndDate": "2013-03-09",
-                    "ServiceStartDate": "2012-12-10"
+                    "ServiceStartDate": "2013-02-01",
+                    "ServiceEndDate": "2013-03-09"
+
                 },
                 Account: {
                     AccountNumber: "whatever",
@@ -398,8 +399,9 @@ describe("invoiceBuilder", function() {
                     Quantity: 1,
                     ChargeName: "Users -- Proration",
                     Id: "ITEM-001",
-                    "ServiceEndDate": "2013-03-09",
-                    "ServiceStartDate": "2013-02-01"
+                    "ServiceStartDate": "2013-02-01",
+                    "ServiceEndDate": "2013-03-09"
+
                 },
                 Account: {
                     AccountNumber: "whatever",

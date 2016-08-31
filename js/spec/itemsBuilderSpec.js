@@ -33,23 +33,72 @@ describe("ItemBuilder", function() {
         });
     });
 
-    describe("rangeIntersection", function() {
+    describe("date operations", function() {
         var aStart = moment.utc("2016-05-01"),
-            aEnd = moment.utc("2016-05-03"),
-            bEnd = moment.utc("2016-05-04");
+            aEnd = moment.utc("2016-05-03").endOf("day"),
+            bEnd = moment.utc("2016-05-04").endOf("day");
 
         it("intersection exists", function() {
             var bStart = moment.utc("2016-05-02"),
                 intersection = ItemsBuilder.rangeIntersection(aStart, aEnd, bStart, bEnd);
 
-            expect(intersection).toEqual(24 * 60 * 60);
+            expect(intersection).toEqual(2);
         });
 
-        it("intersection does not exist", function() {
+        it("intersection exists - just one day", function() {
             var bStart = moment.utc("2016-05-03"),
                 intersection = ItemsBuilder.rangeIntersection(aStart, aEnd, bStart, bEnd);
 
+            expect(intersection).toEqual(1);
+        });
+
+        it("intersection does not exist", function() {
+            var bStart = moment.utc("2016-05-04"),
+                intersection = ItemsBuilder.rangeIntersection(aStart, aEnd, bStart, bEnd);
+
             expect(intersection).toEqual(0);
+        });
+
+        it("subtractRanges - has intersection", function() {
+            var bStart = moment.utc("2016-05-02"),
+                result = ItemsBuilder.subtractRanges(aStart, aEnd, bStart, bEnd),
+                d;
+            if (result && result.length) {
+                d = result[0].diff("days");
+            }
+            expect(d).toEqual(1);
+        });
+        it("subtractRanges - one day intersection", function() {
+            var bStart = moment.utc("2016-05-03"),
+                result = ItemsBuilder.subtractRanges(aStart, aEnd, bStart, bEnd),
+                d;
+            if (result && result.length) {
+                d = result[0].diff("days");
+            }
+            expect(d).toEqual(2);
+        });
+
+        it("subtractRanges - no intersection", function() {
+            var bStart = moment.utc("2016-05-04");
+            bEnd = moment.utc("2016-05-10").endOf("day");
+            var result = ItemsBuilder.subtractRanges(aStart, aEnd, bStart, bEnd),
+                d;
+            if (result && result.length) {
+                d = result[0].diff("days");
+            }
+            expect(d).toEqual(3);
+        });
+
+        it("subtractRanges - full intersection", function() {
+            var bStart = moment.utc("2016-05-01");
+            bEnd = moment.utc("2016-05-03").endOf("day");
+            var result = ItemsBuilder.subtractRanges(aStart, aEnd, bStart, bEnd),
+                d;
+
+            if (result && result.length) {
+                d = result[0].diff("days");
+            }
+            expect(d).toEqual(undefined);
         });
     });
 
@@ -421,8 +470,8 @@ describe("ItemBuilder", function() {
                         ChargeName: "Users",
                         ChargeAmount: -10,
                         AccountingCode: "ANNUALFEE",
-                        ServiceStartDate: "2016-05-02",
-                        ServiceEndDate: "2016-05-04"
+                        ServiceStartDate: "2016-05-01",
+                        ServiceEndDate: "2016-05-03"
                     },
                     Subscription: {
                         Name: "name1"
@@ -437,7 +486,7 @@ describe("ItemBuilder", function() {
             };
 
             var prorationCredits = ItemsBuilder.useProrationCredits(item, amount, proratedUsersCredit, [], {}, {});
-            expect(diff(prorationCredits, expected)).toEqual();
+            expect(diff(expected, prorationCredits)).toEqual();
         });
 
         it("multiple credits, use discount and adjustment", function() {
@@ -449,8 +498,8 @@ describe("ItemBuilder", function() {
                         ChargeName: "Users",
                         ChargeAmount: 10,
                         AccountingCode: "ANNUALFEE",
-                        ServiceStartDate: "2016-05-02",
-                        ServiceEndDate: "2016-05-04"
+                        ServiceStartDate: "2016-05-01",
+                        ServiceEndDate: "2016-05-03"
                     },
                     Subscription: {
                         Name: "name1"
@@ -463,8 +512,8 @@ describe("ItemBuilder", function() {
                         ChargeName: "Users",
                         ChargeAmount: -10,
                         AccountingCode: "ANNUALFEE",
-                        ServiceStartDate: "2016-05-02",
-                        ServiceEndDate: "2016-05-04"
+                        ServiceStartDate: "2016-05-01",
+                        ServiceEndDate: "2016-05-03"
                     },
                     Subscription: {
                         Name: "name1"
@@ -679,6 +728,181 @@ describe("ItemBuilder", function() {
 
             var results = ItemsBuilder.processItems(items, proratedUsersCredit, [], context);
             expect(diff(results, expected)).toEqual();
+        });
+    });
+
+    describe("multiple proration/credit items", function() {
+        it("2 prorated users, 1 credit, split by date", function() {
+            const ITEMS = [
+                {
+                    "InvoiceItem": {
+                        "AccountingCode": "ANNUALFEE",
+                        "AppliedToInvoiceItemId": "",
+                        "ChargeAmount": 419.26,
+                        "ChargeName": "Users -- Proration",
+                        "Id": "2c92a098565403ee01567b0cee470501",
+                        "Quantity": 22,
+                        "ServiceEndDate": "2016-08-10T23:59:59.999Z",
+                        "ServiceStartDate": "2016-05-10",
+                        "TaxAmount": 0
+                    },
+                    "Amendment": {
+                        "Type": "UpdateProduct"
+                    },
+                    "Invoice": {
+                        "AdjustmentAmount": 0,
+                        "Amount": 150.61,
+                        "Balance": 150.61,
+                        "DueDate": "2016-08-11",
+                        "InvoiceDate": "2016-08-11",
+                        "InvoiceNumber": "INV00006875",
+                        "PaymentAmount": 0,
+                        "PostedDate": "2016-08-11T19:25:14+0000",
+                        "RefundAmount": 0,
+                        "Status": "Posted"
+                    },
+                    "ProductRatePlan": {
+                        "Id": "2c92a0fb46dd1f2c0146f5d656962057"
+                    },
+                    "ProductRatePlanCharge": {
+                        "ChargeType": "Recurring"
+                    },
+                    "Subscription": {
+                        "CancelledDate": "",
+                        "Id": "2c92a0fe5654120701567aee537f7b72",
+                        "Name": "A-S00002591",
+                        "Status": "Active",
+                        "SubscriptionEndDate": ""
+                    }
+                },
+                {
+                    "InvoiceItem": {
+                        "AccountingCode": "ANNUALFEE",
+                        "AppliedToInvoiceItemId": "",
+                        "ChargeAmount": 862.5,
+                        "ChargeName": "Users -- Proration",
+                        "Id": "2c92a098565403ee01567b0cee480503",
+                        "Quantity": 23,
+                        "ServiceEndDate": "2017-02-09T23:59:59.999Z",
+                        "ServiceStartDate": "2016-08-11",
+                        "TaxAmount": 0
+                    },
+                    "Amendment": {
+                        "Type": "UpdateProduct"
+                    },
+                    "Invoice": {
+                        "AdjustmentAmount": 0,
+                        "Amount": 150.61,
+                        "Balance": 150.61,
+                        "DueDate": "2016-08-11",
+                        "InvoiceDate": "2016-08-11",
+                        "InvoiceNumber": "INV00006875",
+                        "PaymentAmount": 0,
+                        "PostedDate": "2016-08-11T19:25:14+0000",
+                        "RefundAmount": 0,
+                        "Status": "Posted"
+                    },
+                    "ProductRatePlan": {
+                        "Id": "2c92a0fb46dd1f2c0146f5d656962057"
+                    },
+                    "ProductRatePlanCharge": {
+                        "ChargeType": "Recurring"
+                    },
+                    "Subscription": {
+                        "CancelledDate": "",
+                        "Id": "2c92a0fe5654120701567aee537f7b72",
+                        "Name": "A-S00002591",
+                        "Status": "Active",
+                        "SubscriptionEndDate": ""
+                    }
+                }
+            ];
+            const CREDIT = [
+                {
+                    "InvoiceItem": {
+                        "AccountingCode": "ANNUALFEE",
+                        "AppliedToInvoiceItemId": "",
+                        "ChargeAmount": -1131.15,
+                        "ChargeName": "Users -- Proration Credit",
+                        "Id": "2c92a098565403ee01567b0cee480502",
+                        "Quantity": 20,
+                        "ServiceEndDate": "2017-02-09T23:59:59.999Z",
+                        "ServiceStartDate": "2016-05-10",
+                        "TaxAmount": 0
+                    },
+                    "Amendment": {
+                        "Type": "RemoveProduct"
+                    },
+                    "Invoice": {
+                        "AdjustmentAmount": 0,
+                        "Amount": 150.61,
+                        "Balance": 150.61,
+                        "DueDate": "2016-08-11",
+                        "InvoiceDate": "2016-08-11",
+                        "InvoiceNumber": "INV00006875",
+                        "PaymentAmount": 0,
+                        "PostedDate": "2016-08-11T19:25:14+0000",
+                        "RefundAmount": 0,
+                        "Status": "Posted"
+                    },
+                    "ProductRatePlan": {
+                        "Id": "2c92a0fb46dd1f2c0146f5d656962057"
+                    },
+                    "ProductRatePlanCharge": {
+                        "ChargeType": "Recurring"
+                    },
+                    "Subscription": {
+                        "CancelledDate": "",
+                        "Id": "2c92a0fe5654120701567aee537f7b72",
+                        "Name": "A-S00002591",
+                        "Status": "Active",
+                        "SubscriptionEndDate": ""
+                    }
+                }
+            ];
+
+            var context = {
+                adjustmentMap: {},
+                discountMap: {},
+                invoiceAdjustmentAmount: 0,
+                plans: {
+                    id1: "plan",
+                    "Generic Annually": "generic plan"
+                }
+            };
+
+            const EXPECTED = [
+                {
+                    "type": "subscription",
+                    "subscription_external_id": "A-S00002591",
+                    "plan_uuid": "generic plan",
+                    "service_period_start": "2016-05-10T00:00:00.000Z",
+                    "service_period_end": "2016-08-10T23:59:59.999Z",
+                    "amount_in_cents": 3811,
+                    "prorated": true,
+                    "quantity": 2,
+                    "discount_amount_in_cents": 0,
+                    "tax_amount_in_cents": 0,
+                    "external_id": "2c92a098565403ee01567b0cee470501",
+                    __amendmentType: "UpdateProduct"
+                },
+                {
+                    "type": "subscription",
+                    "subscription_external_id": "A-S00002591",
+                    "plan_uuid": "generic plan",
+                    "service_period_start": "2016-08-11T00:00:00.000Z",
+                    "service_period_end": "2017-02-09T23:59:59.999Z",
+                    "amount_in_cents": 11250,
+                    "prorated": true,
+                    "quantity": 1,
+                    "discount_amount_in_cents": 0,
+                    "tax_amount_in_cents": 0,
+                    "external_id": "2c92a098565403ee01567b0cee480503",
+                    __amendmentType: "UpdateProduct"
+                }
+            ];
+            var results = ItemsBuilder.processItems(ITEMS, CREDIT, [], context);
+            expect(JSON.stringify(diff(EXPECTED, JSON.parse(JSON.stringify(results))), null, 4)).toEqual();
         });
     });
 });
