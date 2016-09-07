@@ -311,8 +311,9 @@ ItemsBuilder.useProrationCredits = function(item, amount, proratedUsersCredit, p
 };
 
 ItemsBuilder.getPlan = function(item, plans) {
-    var uuid = (item.ProductRatePlan || {}).Id;
-    var plan = plans[uuid];
+    var planId = (item.ProductRatePlan || {}).Id,
+        chargeId = (item.ProductRatePlanCharge || {}).Id,
+        plan = plans[chargeId] || plans[planId];
 
     if (!plan) {
         plan = plans[ItemsBuilder.RATE_TO_PLANS[item.InvoiceItem.AccountingCode]];

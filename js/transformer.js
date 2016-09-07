@@ -110,7 +110,9 @@ Transformer.prototype.transformPlans = function(plans) {
     return plans
         .filter(p => p.ProductRatePlanCharge.BillingPeriod)
         .map(p => {
-            var count, unit, externalId = p.ProductRatePlan.Id,
+            var count, unit,
+                planId = p.ProductRatePlan.Id,
+                chargeId = p.ProductRatePlanCharge.Id,
                 billing = p.ProductRatePlanCharge.BillingPeriod;
 
             switch (billing) {
@@ -128,18 +130,21 @@ Transformer.prototype.transformPlans = function(plans) {
                 throw new VError("Unknown plan billing period!");
             }
 
-            if (checkMap[externalId]) {
-                if (billing !== checkMap[externalId]) {
-                    logger.error(p);
-                    throw new VError("One plan has multiple billing periods! " + checkMap[externalId] + " and " + billing);
+            if (checkMap[planId]) {
+                if (billing !== checkMap[planId]) {
+                    // charges are unique
+                    return {name: p.ProductRatePlan.Name + " - " + billing,
+                            chargeId,
+                            count,
+                            unit};
                 }
                 return; // skip duplicate
             } else {
-                checkMap[externalId] = billing;
+                checkMap[planId] = billing;
             }
 
             return {name: p.ProductRatePlan.Name,
-                    externalId,
+                    planId,
                     count,
                     unit};
         }).filter(Boolean);

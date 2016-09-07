@@ -38,7 +38,7 @@ Loader.prototype.getAllInvoiceItems = function() {
         "Invoice.InvoiceDate,Invoice.InvoiceNumber,Invoice.PaymentAmount,"+
         "Invoice.PostedDate,Invoice.RefundAmount,Invoice.Status,"+
         "ProductRatePlan.Id," +
-        "ProductRatePlanCharge.ChargeType," +
+        "ProductRatePlanCharge.ChargeType,ProductRatePlanCharge.Id," +
         "Subscription.CancelledDate,Subscription.Id,Subscription.Name,Subscription.Status,Subscription.SubscriptionEndDate"+
         " from InvoiceItem",
 
@@ -61,7 +61,7 @@ Loader.prototype.getAllPlans = function() {
     return this.aqua.zoqlRequest(
         "select " +
         "ProductRatePlan.Id,ProductRatePlan.Name," +
-        "ProductRatePlanCharge.AccountingCode,ProductRatePlanCharge.BillingPeriod" +
+        "ProductRatePlanCharge.AccountingCode,ProductRatePlanCharge.BillingPeriod,ProductRatePlanCharge.Id" +
         " from ProductRatePlanCharge",
         "all plans"
     );
