@@ -740,7 +740,7 @@ describe("ItemBuilder", function() {
                         "AppliedToInvoiceItemId": "",
                         "ChargeAmount": 419.26,
                         "ChargeName": "Users -- Proration",
-                        "Id": "2c92a098565403ee01567b0cee470501",
+                        "Id": "ii00123",
                         "Quantity": 22,
                         "ServiceEndDate": "2016-08-10T23:59:59.999Z",
                         "ServiceStartDate": "2016-05-10",
@@ -755,22 +755,22 @@ describe("ItemBuilder", function() {
                         "Balance": 150.61,
                         "DueDate": "2016-08-11",
                         "InvoiceDate": "2016-08-11",
-                        "InvoiceNumber": "INV00006875",
+                        "InvoiceNumber": "i-0123",
                         "PaymentAmount": 0,
                         "PostedDate": "2016-08-11T19:25:14+0000",
                         "RefundAmount": 0,
                         "Status": "Posted"
                     },
                     "ProductRatePlan": {
-                        "Id": "2c92a0fb46dd1f2c0146f5d656962057"
+                        "Id": "somePlanId"
                     },
                     "ProductRatePlanCharge": {
                         "ChargeType": "Recurring"
                     },
                     "Subscription": {
                         "CancelledDate": "",
-                        "Id": "2c92a0fe5654120701567aee537f7b72",
-                        "Name": "A-S00002591",
+                        "Id": "subId",
+                        "Name": "subName",
                         "Status": "Active",
                         "SubscriptionEndDate": ""
                     }
@@ -781,7 +781,7 @@ describe("ItemBuilder", function() {
                         "AppliedToInvoiceItemId": "",
                         "ChargeAmount": 862.5,
                         "ChargeName": "Users -- Proration",
-                        "Id": "2c92a098565403ee01567b0cee480503",
+                        "Id": "ii012345",
                         "Quantity": 23,
                         "ServiceEndDate": "2017-02-09T23:59:59.999Z",
                         "ServiceStartDate": "2016-08-11",
@@ -796,22 +796,22 @@ describe("ItemBuilder", function() {
                         "Balance": 150.61,
                         "DueDate": "2016-08-11",
                         "InvoiceDate": "2016-08-11",
-                        "InvoiceNumber": "INV00006875",
+                        "InvoiceNumber": "i-0123",
                         "PaymentAmount": 0,
                         "PostedDate": "2016-08-11T19:25:14+0000",
                         "RefundAmount": 0,
                         "Status": "Posted"
                     },
                     "ProductRatePlan": {
-                        "Id": "2c92a0fb46dd1f2c0146f5d656962057"
+                        "Id": "somePlanId"
                     },
                     "ProductRatePlanCharge": {
                         "ChargeType": "Recurring"
                     },
                     "Subscription": {
                         "CancelledDate": "",
-                        "Id": "2c92a0fe5654120701567aee537f7b72",
-                        "Name": "A-S00002591",
+                        "Id": "subId",
+                        "Name": "subName",
                         "Status": "Active",
                         "SubscriptionEndDate": ""
                     }
@@ -839,22 +839,22 @@ describe("ItemBuilder", function() {
                         "Balance": 150.61,
                         "DueDate": "2016-08-11",
                         "InvoiceDate": "2016-08-11",
-                        "InvoiceNumber": "INV00006875",
+                        "InvoiceNumber": "i-0123",
                         "PaymentAmount": 0,
                         "PostedDate": "2016-08-11T19:25:14+0000",
                         "RefundAmount": 0,
                         "Status": "Posted"
                     },
                     "ProductRatePlan": {
-                        "Id": "2c92a0fb46dd1f2c0146f5d656962057"
+                        "Id": "somePlanId"
                     },
                     "ProductRatePlanCharge": {
                         "ChargeType": "Recurring"
                     },
                     "Subscription": {
                         "CancelledDate": "",
-                        "Id": "2c92a0fe5654120701567aee537f7b72",
-                        "Name": "A-S00002591",
+                        "Id": "subId",
+                        "Name": "subName",
                         "Status": "Active",
                         "SubscriptionEndDate": ""
                     }
@@ -874,7 +874,7 @@ describe("ItemBuilder", function() {
             const EXPECTED = [
                 {
                     "type": "subscription",
-                    "subscription_external_id": "A-S00002591",
+                    "subscription_external_id": "subName",
                     "plan_uuid": "generic plan",
                     "service_period_start": "2016-05-10T00:00:00.000Z",
                     "service_period_end": "2016-08-10T23:59:59.999Z",
@@ -883,12 +883,12 @@ describe("ItemBuilder", function() {
                     "quantity": 2,
                     "discount_amount_in_cents": 0,
                     "tax_amount_in_cents": 0,
-                    "external_id": "2c92a098565403ee01567b0cee470501",
+                    "external_id": "ii00123",
                     __amendmentType: "UpdateProduct"
                 },
                 {
                     "type": "subscription",
-                    "subscription_external_id": "A-S00002591",
+                    "subscription_external_id": "subName",
                     "plan_uuid": "generic plan",
                     "service_period_start": "2016-08-11T00:00:00.000Z",
                     "service_period_end": "2017-02-09T23:59:59.999Z",
@@ -897,7 +897,7 @@ describe("ItemBuilder", function() {
                     "quantity": 1,
                     "discount_amount_in_cents": 0,
                     "tax_amount_in_cents": 0,
-                    "external_id": "2c92a098565403ee01567b0cee480503",
+                    "external_id": "ii012345",
                     __amendmentType: "UpdateProduct"
                 }
             ];

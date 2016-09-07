@@ -44,10 +44,26 @@ Transformer.prototype.reloadAll = function () {
         this.includeFree && this.loader.getAllCustomers(),
         this.loader.getAllPlans(),
         this.loader.getAllInvoicePayments(),
-        this.loader.getAllRefundInvoicePayments(),
-        this.loader.getAllInvoiceItemAdjustments(),
-        this.loader.getAllInvoiceAdjustments(),
-        this.loader.getAllCreditBalanceAdjustments(),
+        this.loader.getAllRefundInvoicePayments()
+            .catch(err => {
+                logger.error("Couldn't fetch RefundInvoicePayments!", err);
+                return []; // Zuora doesn't specify "No records" error. Recovery for that case.
+            }),
+        this.loader.getAllInvoiceItemAdjustments()
+            .catch(err => {
+                logger.error("Couldn't fetch InvoiceItemAdjustments!", err);
+                return []; // Zuora doesn't specify "No records" error. Recovery for that case.
+            }),
+        this.loader.getAllInvoiceAdjustments()
+            .catch(err => {
+                logger.error("Couldn't fetch InvoiceAdjustments!", err);
+                return []; // Zuora doesn't specify "No records" error. Recovery for that case.
+            }),
+        this.loader.getAllCreditBalanceAdjustments()
+            .catch(err => {
+                logger.error("Couldn't fetch CreditBalanceAdjustments!", err);
+                return []; // Zuora doesn't specify "No records" error. Recovery for that case.
+            }),
         this.importer.getDataSource(this.dataSource)
     ]);
 };
