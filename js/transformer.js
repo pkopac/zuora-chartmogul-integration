@@ -122,36 +122,36 @@ Transformer.prototype.transformPlans = function(plans) {
             case "Quarter":
                 count = 3, unit = "month";
                 break;
-	    case "Semi-Annual":
-		count = 6, unit = "month";
-		break;
+            case "Semi-Annual":
+                count = 6, unit = "month";
+                break;
             case "Annual":
                 count = 1, unit = "year";
                 break;
-	    case "Eighteen Months":
-		count = 18, unit = "month";
-		break;
-	    case "Two Years":
-		count = 2, unit = "year";
-		break;
-	    case "Three Years":
-		count = 3, unit = "year";
-		break;
-	    case "Five Years":
-		count = 5, unit = "year";
-		break;
-	    case "Specific Months":
-		count = 1, unit = "month";
-		break;
-	    case "Subscription Term":
-        	logger.error(p);
+            case "Eighteen Months":
+                count = 18, unit = "month";
+                break;
+            case "Two Years":
+                count = 2, unit = "year";
+                break;
+            case "Three Years":
+                count = 3, unit = "year";
+                break;
+            case "Five Years":
+                count = 5, unit = "year";
+                break;
+            case "Specific Months":
+                count = 1, unit = "month";
+                break;
+            case "Subscription Term":
+                logger.error(p);
                 throw new VError("Plans with Subscription Term billing periods are currently unsupported!");
-	    case "Week":
-		count = 7, unit = "day";
-		break;
-	    case "Specific Weeks":
-		count = 7, unit = "day";
-		break;
+            case "Week":
+                count = 7, unit = "day";
+                break;
+            case "Specific Weeks":
+                count = 7, unit = "day";
+                break;
             default:
                 logger.error(p);
                 throw new VError("Unknown plan billing period!");
@@ -161,7 +161,7 @@ Transformer.prototype.transformPlans = function(plans) {
                 if (billing !== checkMap[planId]) {
                     // charges are unique
                     return {name: p.ProductRatePlan.Name + " - " + billing,
-                            chargeId,
+                            externalId: chargeId,
                             count,
                             unit};
                 }
@@ -171,7 +171,7 @@ Transformer.prototype.transformPlans = function(plans) {
             }
 
             return {name: p.ProductRatePlan.Name,
-                    planId,
+                    externalId: planId,
                     count,
                     unit};
         }).filter(Boolean);
