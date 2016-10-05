@@ -129,6 +129,11 @@ function runTransformation(configuration, dry, update) {
             /* All unhandled errors end up here -.o */
             if (err.error && err.error.invoices) {
                 logger.fatal(err.error.invoices);
+            } else if (Array.isArray(err)) {
+                err.forEach(e => {
+                    logger.fatal(e.message);
+                    logger.fatal(e.options.body);
+                });
             } else {
                 logger.fatal(err);
                 logger.fatal(JSON.stringify(err, null, 2));
