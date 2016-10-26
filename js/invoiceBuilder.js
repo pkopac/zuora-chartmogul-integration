@@ -142,8 +142,9 @@ InvoiceBuilder.removePartialRefunds = function(invoice, totalPayments, totalRefu
         return;
     }
 
-    throw new VError("Unexpected payment case: invoiceTotal %d, totalPayments %d, totalRefunds %d, totalCreditAdjusted %d, clearPayment %d",
-        invoiceTotal, totalPayments, totalRefunds, totalCreditAdjusted, clearPayment);
+    logger.warn("Unexpected payment case: invoiceTotal %d, totalPayments %d, totalRefunds %d, totalCreditAdjusted %d, clearPayment %d", invoiceTotal, totalPayments, totalRefunds, totalCreditAdjusted, clearPayment);
+    /*throw new VError("Unexpected payment case: invoiceTotal %d, totalPayments %d, totalRefunds %d, totalCreditAdjusted %d, clearPayment %d",
+        invoiceTotal, totalPayments, totalRefunds, totalCreditAdjusted, clearPayment);*/
 };
 
 
