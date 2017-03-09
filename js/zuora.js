@@ -128,7 +128,10 @@ ZuoraAqua.prototype.zoqlRequest = function(query, name) {
     .then(res => self.pollUntilReady(res))
      // Parsing needs to know headers in advance, because some lines might have empty columns.
     .then(buffer => Q.ninvoke(
-        new Converter({headers: query.match(/select (.*) from.*/)[1].split(",")}),
+        new Converter({
+          headers: query.match(/select (.*) from.*/)[1].split(","),
+          checkType: true
+        }),
         "fromString",
         buffer.toString())
     );
