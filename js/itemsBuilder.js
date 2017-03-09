@@ -5,10 +5,10 @@ var logger = require("log4js")
     _ = require("lodash"),
     VError = require("verror"),
     moment = require("moment"),
+    momentRange = require("moment-range"),
     PLANS = require("./importer.js").Importer.PLANS;
 
-require("moment-range");
-
+momentRange.extendMoment(moment);
 
 var ItemsBuilder = function() {};
 
