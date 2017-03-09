@@ -27,7 +27,7 @@ var Importer = function () {
 };
 
 const CHARTMOGUL_DELAY = 10000,
-    MAX_PARALLEL_CUSTOMERS_REQUESTS = 1000;
+    MAX_PARALLEL_CUSTOMERS_REQUESTS = 10;
 
 /* Only for deleted subscriptions */
 Importer.PLANS = {
@@ -201,7 +201,7 @@ Importer.prototype._cap = function(limit, desc) {
         all = Q.defer();
 
     var q = queue(limit, (call, done) => {
-        if (++counter % 1000 === 0) {
+        if (++counter % 10 === 0) {
             logger.debug("Sending " + counter + " " + desc + " request...");
         }
         call()
